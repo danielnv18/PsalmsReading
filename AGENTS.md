@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 - Current root files: `PsalmsReading.slnx`, `PLAN.md`, `README.md`, `psalms_full_list.csv`.
 - Planned projects (see `PLAN.md`): `PsalmsReading.Domain`, `PsalmsReading.Application`, `PsalmsReading.Infrastructure`, `PsalmsReading.Api`, `PsalmsReading.UI` (Blazor WASM), `PsalmsReading.Tests` (xUnit). All will be managed through the solution file and follow clean architecture boundaries.
-- Data: `psalms_full_list.csv` seeds the database on first run; afterward, all reads/writes go through the database.
+- Data: `psalms_full_list.csv` seeds the database on first run; afterward, all reads/writes go through the database. Themes and epigraphs are normalized (lookup tables + join tables).
 
 ## Build, Test, and Development Commands
 - Restore/build solution: `dotnet restore` then `dotnet build`.

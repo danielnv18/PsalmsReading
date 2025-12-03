@@ -45,11 +45,13 @@
    - UI -> Api (HTTP client/shared DTOs)
    - Tests -> Domain/Application (plus others as needed)
 3) Build once to confirm structure: `dotnet build`.
+Status: Completed.
 
 ### Phase 2 — Domain/Application contracts
 1) Define Domain entities/value objects (Psalm, ReadingRecord, PlannedReading).
 2) Define Application interfaces and DTOs (repositories, scheduling service, calendar exporter).
 3) Add unit tests for basic domain rules (xUnit).
+Status: Completed. Domain/entities, Application interfaces/DTOs, initial domain tests added.
 
 ### Phase 3 — Infrastructure data layer
 1) Add packages: `Microsoft.EntityFrameworkCore.Sqlite`, `Microsoft.EntityFrameworkCore.Design`, `CsvHelper`.
@@ -57,24 +59,29 @@
 3) Implement CSV import on first run to seed the database.
 4) Add repository implementations.
 5) `dotnet ef migrations add InitialCreate` then `dotnet ef database update`.
+Status: In progress. Packages added; DbContext/configurations created; repositories implemented; CSV import service implemented. Themes/Epigraphs normalized via lookup tables + join tables. Pending: wire DbContext into Api, add migration, seed on startup, run `dotnet ef migrations add InitialCreate` and `dotnet ef database update`.
 
 ### Phase 4 — Scheduling and calendar
 1) Add package: `Ical.Net`.
 2) Implement scheduling service with the rules listed above (Easter/Holy Week calculation).
 3) Implement ICS exporter with the provided template.
 4) Add tests for scheduling/ICS.
+Status: Not started.
 
 ### Phase 5 — API
 1) Add package: `Swashbuckle.AspNetCore`.
 2) Minimal API endpoints: psalms, readings, schedule generation/export.
 3) Hook up DI for Infrastructure services.
 4) `dotnet run --project PsalmsReading.Api` to verify.
+Status: Not started.
 
 ### Phase 6 — UI
 1) Blazor WASM pages: psalm catalog, reading history (add date), scheduler (1/2/3/6 months, download ICS).
 2) Wire HTTP client to API endpoints.
 3) `dotnet run --project PsalmsReading.UI` to verify.
+Status: Not started.
 
 ### Phase 7 — Polish
 1) `dotnet format`, `dotnet build`, `dotnet test`.
 2) Add README updates/screenshots if needed.
+Status: Not started.
