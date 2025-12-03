@@ -4,5 +4,5 @@ namespace PsalmsReading.Application.Interfaces;
 
 public interface ICalendarExporter
 {
-    string CreateCalendar(IEnumerable<PlannedReading> plannedReadings);
+    Task<string> CreateCalendarAsync(IEnumerable<PlannedReading> plannedReadings, CancellationToken cancellationToken = default);
 }

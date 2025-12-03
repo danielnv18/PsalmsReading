@@ -24,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\PsalmsReading.Domain\PsalmsReading.Domain.csproj" />
     <ProjectReference Include="..\PsalmsReading.Application\PsalmsReading.Application.csproj" />
+    <ProjectReference Include="..\PsalmsReading.Infrastructure\PsalmsReading.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

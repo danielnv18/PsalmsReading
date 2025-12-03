@@ -66,7 +66,7 @@ Status: Completed. Packages added; DbContext/configurations created; repositorie
 2) Implement scheduling service with the rules listed above (Easter/Holy Week calculation).
 3) Implement ICS exporter with the provided template.
 4) Add tests for scheduling/ICS.
-Status: Not started.
+Status: Completed. Scheduling service with priority rules (Holy Week, December mesiánico, first Sunday alabanza, theme fallbacks, short readings, exclusions, least-read ordering) plus ICS exporter that uses the provided body template. Added unit tests for key scheduling rules. Pending local command: `dotnet add PsalmsReading.Infrastructure package Ical.Net` if not already restored.
 
 ### Phase 5 — API
 1) Add package: `Swashbuckle.AspNetCore`.

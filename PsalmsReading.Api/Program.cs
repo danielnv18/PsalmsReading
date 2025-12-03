@@ -17,6 +17,8 @@ builder.Services.AddScoped<IPsalmRepository, PsalmRepository>();
 builder.Services.AddScoped<IReadingRepository, ReadingRepository>();
 builder.Services.AddScoped<IPlannedReadingRepository, PlannedReadingRepository>();
 builder.Services.AddScoped<IPsalmImportService, PsalmImportService>();
+builder.Services.AddScoped<IReadingScheduler, ReadingScheduler>();
+builder.Services.AddScoped<ICalendarExporter, CalendarExporter>();
 
 builder.Services.AddOpenApi();
 
