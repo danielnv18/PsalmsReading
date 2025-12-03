@@ -14,14 +14,25 @@ internal static class DatabaseInitializationExtensions
 
         await context.Database.MigrateAsync(cancellationToken);
 
-        var csvPath = Path.Combine(app.Environment.ContentRootPath, "psalms_full_list.csv");
-        if (!File.Exists(csvPath))
+        var csvPath = FindCsv(app);
+        if (csvPath is null)
         {
-            app.Logger.LogWarning("Seed skipped: CSV file not found at {CsvPath}", csvPath);
+            app.Logger.LogWarning("Seed skipped: CSV file not found in content root or output folder.");
             return;
         }
 
         await using var stream = File.OpenRead(csvPath);
         await importService.ImportIfEmptyAsync(stream, cancellationToken);
+    }
+
+    private static string? FindCsv(WebApplication app)
+    {
+        var candidates = new[]
+        {
+            Path.Combine(app.Environment.ContentRootPath, "psalms_full_list.csv"),
+            Path.Combine(AppContext.BaseDirectory, "psalms_full_list.csv")
+        };
+
+        return candidates.FirstOrDefault(File.Exists);
     }
 }

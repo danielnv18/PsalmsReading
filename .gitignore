@@ -103,3 +103,6 @@ Thumbs.db
 .package-lock.json
 
 *.db
+# Sqlite WAL files
+*.db-shm
+*.db-wal

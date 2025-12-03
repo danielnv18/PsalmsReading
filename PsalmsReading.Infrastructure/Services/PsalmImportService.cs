@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using CsvHelper;
 using CsvHelper.Configuration;
+using CsvHelper.Configuration.Attributes;
 using PsalmsReading.Application.Interfaces;
 using PsalmsReading.Domain.Entities;
 
@@ -30,6 +31,7 @@ public sealed class PsalmImportService : IPsalmImportService
             BadDataFound = null,
             MissingFieldFound = null,
             TrimOptions = TrimOptions.Trim,
+            PrepareHeaderForMatch = args => args.Header?.Trim().ToLowerInvariant(),
         });
 
         var records = new List<Psalm>();
@@ -67,11 +69,17 @@ public sealed class PsalmImportService : IPsalmImportService
 
     private sealed class PsalmCsvRow
     {
+        [Name("capitulo")]
         public int Capitulo { get; set; }
+        [Name("titulo")]
         public string Titulo { get; set; } = string.Empty;
+        [Name("total_verses")]
         public int Total_Verses { get; set; }
+        [Name("tipo")]
         public string? Tipo { get; set; }
+        [Name("epigrafes")]
         public string? Epigrafes { get; set; }
+        [Name("temas")]
         public string? Temas { get; set; }
     }
 }
