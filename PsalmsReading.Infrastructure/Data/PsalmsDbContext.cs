@@ -16,6 +16,7 @@ public sealed class PsalmsDbContext : DbContext
     public DbSet<PsalmEpigraph> PsalmEpigraphs => Set<PsalmEpigraph>();
     public DbSet<PsalmTheme> PsalmThemes => Set<PsalmTheme>();
     public DbSet<Theme> Themes => Set<Theme>();
+    public DbSet<Epigraph> Epigraphs => Set<Epigraph>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

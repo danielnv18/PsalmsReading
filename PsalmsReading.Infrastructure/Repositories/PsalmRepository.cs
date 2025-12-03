@@ -19,9 +19,11 @@ public sealed class PsalmRepository : IPsalmRepository
     {
         var psalms = await _dbContext.Psalms.AsNoTracking().ToListAsync(cancellationToken);
 
-        var epigraphs = await _dbContext.PsalmEpigraphs.AsNoTracking()
+        var epigraphs = await _dbContext.PsalmEpigraphs
+            .AsNoTracking()
+            .Include(pe => pe.Epigraph)
             .GroupBy(e => e.PsalmId)
-            .ToDictionaryAsync(g => g.Key, g => g.Select(x => x.Name).ToList(), cancellationToken);
+            .ToDictionaryAsync(g => g.Key, g => g.Select(x => x.Epigraph!.Name).ToList(), cancellationToken);
 
         var themes = await _dbContext.PsalmThemes
             .AsNoTracking()
@@ -53,7 +55,8 @@ public sealed class PsalmRepository : IPsalmRepository
 
         var epigraphs = await _dbContext.PsalmEpigraphs.AsNoTracking()
             .Where(e => e.PsalmId == psalmId)
-            .Select(e => e.Name)
+            .Include(pe => pe.Epigraph)
+            .Select(e => e.Epigraph!.Name)
             .ToListAsync(cancellationToken);
 
         var themes = await _dbContext.PsalmThemes.AsNoTracking()
@@ -79,15 +82,6 @@ public sealed class PsalmRepository : IPsalmRepository
         var epigraphs = new List<PsalmEpigraph>();
         var themeJoins = new List<PsalmTheme>();
 
-        foreach (var psalm in list)
-        {
-            epigraphs.AddRange(psalm.Epigraphs.Select(e => new PsalmEpigraph
-            {
-                PsalmId = psalm.Id,
-                Name = e
-            }));
-        }
-
         var uniqueThemeNames = list.SelectMany(p => p.Themes)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -111,8 +105,43 @@ public sealed class PsalmRepository : IPsalmRepository
 
         var themeLookup = existingThemes.ToDictionary(t => t.Name, t => t.Id, StringComparer.OrdinalIgnoreCase);
 
+        var uniqueEpigraphNames = list.SelectMany(p => p.Epigraphs)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var existingEpigraphs = await _dbContext.Epigraphs
+            .Where(e => uniqueEpigraphNames.Contains(e.Name))
+            .ToListAsync(cancellationToken);
+
+        var existingEpigraphNames = new HashSet<string>(existingEpigraphs.Select(e => e.Name), StringComparer.OrdinalIgnoreCase);
+        var newEpigraphs = uniqueEpigraphNames
+            .Where(name => !existingEpigraphNames.Contains(name))
+            .Select(name => new Epigraph { Name = name })
+            .ToList();
+
+        if (newEpigraphs.Count > 0)
+        {
+            await _dbContext.Epigraphs.AddRangeAsync(newEpigraphs, cancellationToken);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            existingEpigraphs.AddRange(newEpigraphs);
+        }
+
+        var epigraphLookup = existingEpigraphs.ToDictionary(e => e.Name, e => e.Id, StringComparer.OrdinalIgnoreCase);
+
         foreach (var psalm in list)
         {
+            foreach (var epigraphName in psalm.Epigraphs)
+            {
+                if (epigraphLookup.TryGetValue(epigraphName, out var epigraphId))
+                {
+                    epigraphs.Add(new PsalmEpigraph
+                    {
+                        PsalmId = psalm.Id,
+                        EpigraphId = epigraphId
+                    });
+                }
+            }
+
             foreach (var themeName in psalm.Themes)
             {
                 if (themeLookup.TryGetValue(themeName, out var themeId))
