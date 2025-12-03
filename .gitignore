@@ -1,0 +1,104 @@
+# .NET / Visual Studio
+bin/
+obj/
+.vs/
+TestResults/
+artifacts/
+
+# Build outputs
+*.dll
+*.exe
+*.app
+*.appx
+*.appxbundle
+*.nupkg
+*.snupkg
+*.so
+*.dylib
+*.a
+*.lib
+*.pdb
+
+# User-specific
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+
+# Logs
+*.log
+*.svclog
+*.wrn
+*.err
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/packages/
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Visual Studio
+*.rsuser
+*.suo
+*.user
+*.userprefs
+*.dbmdl
+*.bak
+*.backup
+*.bkp
+
+# Rider / VS Code
+.idea/
+.vscode/
+*.code-workspace
+
+# Generated files
+_UpgradeReport_Files/
+Backup*/
+ServiceFabricBackup/
+*/build/
+Generated\ Files/
+
+# Azure
+*.azurePubxml
+*.azurePubxml.user
+*.publishsettings
+*.pubxml
+*.pubxml.user
+csx/
+*.build.csdef
+
+# ASP.NET
+appsettings.*.json
+App_Data/
+App_Code/
+
+# Entity Framework
+*.mdf
+*.ldf
+
+# Coverage
+*.coverage
+*.coveragexml
+.coverage/
+coverage*/
+coverage.xml
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+
+# Dumps
+*.dmp
+*.stackdump
+
+# Others
+*.cache
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+.package-lock.json
+
