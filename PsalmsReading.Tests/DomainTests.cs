@@ -1,5 +1,4 @@
-using PsalmsReading.Domain.Entities;
-using Xunit;
+﻿using PsalmsReading.Domain.Entities;
 
 namespace PsalmsReading.Tests;
 
@@ -38,6 +37,14 @@ public class DomainTests
     {
         var psalm = new Psalm(4, "Title", 5, "Alabanza", null, null);
         Assert.True(psalm.HasType("alabanza"));
+    }
+
+    [Fact]
+    public void Psalm_NormalizesEpigraphs()
+    {
+        var psalm = new Psalm(5, "Title", 5, "Alabanza", new[] { "Selah", "selah", "Neguinot" }, null);
+        Assert.Equal(2, psalm.Epigraphs.Count);
+        Assert.True(psalm.HasEpigraph("SELAH"));
     }
 
     [Fact]

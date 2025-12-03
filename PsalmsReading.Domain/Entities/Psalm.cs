@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 
 namespace PsalmsReading.Domain.Entities;
 
@@ -8,10 +8,10 @@ public sealed class Psalm
     public string Title { get; }
     public int TotalVerses { get; }
     public string? Type { get; }
-    public string? Epigraphs { get; }
+    public IReadOnlyList<string> Epigraphs { get; }
     public IReadOnlyList<string> Themes { get; }
 
-    public Psalm(int id, string title, int totalVerses, string? type, string? epigraphs, IEnumerable<string>? themes)
+    public Psalm(int id, string title, int totalVerses, string? type, IEnumerable<string>? epigraphs, IEnumerable<string>? themes)
     {
         if (id <= 0)
         {
@@ -32,7 +32,13 @@ public sealed class Psalm
         Title = title.Trim();
         TotalVerses = totalVerses;
         Type = string.IsNullOrWhiteSpace(type) ? null : type.Trim();
-        Epigraphs = string.IsNullOrWhiteSpace(epigraphs) ? null : epigraphs.Trim();
+
+        var epigraphList = epigraphs?
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .Select(e => e.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? new List<string>();
+        Epigraphs = new ReadOnlyCollection<string>(epigraphList);
 
         var themeList = themes?
             .Where(t => !string.IsNullOrWhiteSpace(t))
@@ -51,6 +57,9 @@ public sealed class Psalm
 
     public bool HasTheme(string theme) =>
         Themes.Any(t => string.Equals(t, theme, StringComparison.OrdinalIgnoreCase));
+
+    public bool HasEpigraph(string epigraph) =>
+        Epigraphs.Any(e => string.Equals(e, epigraph, StringComparison.OrdinalIgnoreCase));
 
     public bool IsExcluded(IReadOnlySet<int> excludedPsalmIds) =>
         excludedPsalmIds.Contains(Id);
