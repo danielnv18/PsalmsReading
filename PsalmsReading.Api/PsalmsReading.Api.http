@@ -1,0 +1,6 @@
+@PsalmsReading.Api_HostAddress = http://localhost:0
+
+GET {{PsalmsReading.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

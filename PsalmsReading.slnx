@@ -1,2 +1,8 @@
 <Solution>
+  <Project Path="PsalmsReading.Api/PsalmsReading.Api.csproj" />
+  <Project Path="PsalmsReading.Application/PsalmsReading.Application.csproj" />
+  <Project Path="PsalmsReading.Domain/PsalmsReading.Domain.csproj" />
+  <Project Path="PsalmsReading.Infrastructure/PsalmsReading.Infrastructure.csproj" />
+  <Project Path="PsalmsReading.Tests/PsalmsReading.Tests.csproj" />
+  <Project Path="PsalmsReading.UI/PsalmsReading.UI.csproj" />
 </Solution>
