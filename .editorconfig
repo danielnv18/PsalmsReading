@@ -28,6 +28,7 @@ csharp_style_prefer_index_operator = true:suggestion
 csharp_style_prefer_range_operator = true:suggestion
 csharp_style_prefer_readonly_struct = true:suggestion
 csharp_style_allow_blank_lines_between_consecutive_braces = false:silent
+dotnet_diagnostic.IDE0005.severity = warning  # remove unused usings
 
 # .NET coding conventions
 dotnet_style_operator_placement_when_wrapping = beginning_of_line
@@ -49,4 +50,3 @@ indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
-
