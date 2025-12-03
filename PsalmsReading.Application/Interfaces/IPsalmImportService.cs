@@ -1,4 +1,4 @@
-namespace PsalmsReading.Application.Interfaces;
+﻿namespace PsalmsReading.Application.Interfaces;
 
 public interface IPsalmImportService
 {

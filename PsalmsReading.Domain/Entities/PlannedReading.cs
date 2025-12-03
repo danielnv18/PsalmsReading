@@ -1,4 +1,4 @@
-namespace PsalmsReading.Domain.Entities;
+﻿namespace PsalmsReading.Domain.Entities;
 
 public sealed class PlannedReading
 {

@@ -1,4 +1,4 @@
-using PsalmsReading.Domain.Entities;
+﻿using PsalmsReading.Domain.Entities;
 
 namespace PsalmsReading.Application.Interfaces;
 
