@@ -59,7 +59,7 @@ Status: Completed. Domain/entities, Application interfaces/DTOs, initial domain 
 3) Implement CSV import on first run to seed the database.
 4) Add repository implementations.
 5) `dotnet ef migrations add InitialCreate` then `dotnet ef database update`.
-Status: In progress. Packages added; DbContext/configurations created; repositories implemented; CSV import service implemented. Themes/Epigraphs normalized via lookup tables + join tables. Pending: wire DbContext into Api, add migration, seed on startup, run `dotnet ef migrations add InitialCreate` and `dotnet ef database update`.
+Status: Completed. Packages added; DbContext/configurations created; repositories implemented; CSV import service implemented; DbContext wired into API with Sqlite connection and startup seeding from `psalms_full_list.csv`; initial migration added and database update applied.
 
 ### Phase 4 — Scheduling and calendar
 1) Add package: `Ical.Net`.

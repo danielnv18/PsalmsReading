@@ -4,12 +4,23 @@ namespace PsalmsReading.Domain.Entities;
 
 public sealed class Psalm
 {
-    public int Id { get; }
-    public string Title { get; }
-    public int TotalVerses { get; }
-    public string? Type { get; }
-    public IReadOnlyList<string> Epigraphs { get; }
-    public IReadOnlyList<string> Themes { get; }
+    public int Id { get; private set; }
+    public string Title { get; private set; }
+    public int TotalVerses { get; private set; }
+    public string? Type { get; private set; }
+    public IReadOnlyList<string> Epigraphs { get; private set; }
+    public IReadOnlyList<string> Themes { get; private set; }
+
+    // EF Core private constructor (ignores epigraphs/themes, set via joins in repositories)
+    private Psalm(int id, string title, int totalVerses, string? type)
+    {
+        Id = id;
+        Title = title;
+        TotalVerses = totalVerses;
+        Type = type;
+        Epigraphs = Array.Empty<string>();
+        Themes = Array.Empty<string>();
+    }
 
     public Psalm(int id, string title, int totalVerses, string? type, IEnumerable<string>? epigraphs, IEnumerable<string>? themes)
     {

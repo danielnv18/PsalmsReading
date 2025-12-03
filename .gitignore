@@ -102,3 +102,4 @@ BenchmarkDotNet.Artifacts/
 Thumbs.db
 .package-lock.json
 
+*.db

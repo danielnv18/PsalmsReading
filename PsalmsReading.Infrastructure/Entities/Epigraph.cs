@@ -1,4 +1,4 @@
-namespace PsalmsReading.Infrastructure.Entities;
+﻿namespace PsalmsReading.Infrastructure.Entities;
 
 public sealed class Epigraph
 {

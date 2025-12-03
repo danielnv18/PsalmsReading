@@ -7,10 +7,11 @@
 
 ## Build, Test, and Development Commands
 - Restore/build solution: `dotnet restore` then `dotnet build`.
-- Run API: `dotnet run --project PsalmsReading.Api`.
+- Run API: `dotnet run --project PsalmsReading.Api` (seeds DB from `psalms_full_list.csv` on first run if empty).
 - Run UI: `dotnet run --project PsalmsReading.UI`.
 - Tests: `dotnet test`.
 - Format: `dotnet format`.
+- Migrations: add with `dotnet ef migrations add <Name> -p PsalmsReading.Infrastructure -s PsalmsReading.Api --output-dir Migrations`; apply with `dotnet ef database update -p PsalmsReading.Infrastructure -s PsalmsReading.Api`.
 
 ## Coding Style & Naming Conventions
 - Language: C# 10+ (`net10.0`), clean architecture. Code identifiers in English; data values in Spanish. Use `Type` instead of `Tipo`, etc.

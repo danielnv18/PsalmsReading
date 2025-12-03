@@ -12,5 +12,7 @@ public sealed class PsalmConfiguration : IEntityTypeConfiguration<Psalm>
         builder.Property(p => p.Title).IsRequired().HasMaxLength(200);
         builder.Property(p => p.Type).HasMaxLength(100);
         builder.Property(p => p.TotalVerses).IsRequired();
+        builder.Ignore(p => p.Epigraphs);
+        builder.Ignore(p => p.Themes);
     }
 }
