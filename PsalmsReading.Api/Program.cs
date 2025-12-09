@@ -105,6 +105,29 @@ api.MapPost("/readings", async (CreateReadingRequest request, IReadingRepository
     return Results.Created($"/api/readings/{record.Id}", MapReading(record));
 });
 
+api.MapPut("/readings/{id:guid}", async (Guid id, UpdateReadingRequest request, IReadingRepository repository, CancellationToken cancellationToken) =>
+{
+    if (id == Guid.Empty || request.PsalmId <= 0 || request.DateRead == default)
+    {
+        return Results.BadRequest("Id, PsalmId and DateRead are required.");
+    }
+
+    var updated = new PsalmsReading.Domain.Entities.ReadingRecord(id, request.PsalmId, request.DateRead);
+    var success = await repository.UpdateAsync(updated, cancellationToken);
+    return success ? Results.Ok(MapReading(updated)) : Results.NotFound();
+});
+
+api.MapDelete("/readings/{id:guid}", async (Guid id, IReadingRepository repository, CancellationToken cancellationToken) =>
+{
+    if (id == Guid.Empty)
+    {
+        return Results.BadRequest("Id is required.");
+    }
+
+    var success = await repository.DeleteAsync(id, cancellationToken);
+    return success ? Results.NoContent() : Results.NotFound();
+});
+
 api.MapPost("/schedule", async (ScheduleRequest request, IReadingScheduler scheduler, IPlannedReadingRepository plannedRepository, CancellationToken cancellationToken) =>
 {
     if (!IsValidMonths(request.Months))

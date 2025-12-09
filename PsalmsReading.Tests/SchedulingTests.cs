@@ -95,6 +95,24 @@ public class SchedulingTests
             return Task.CompletedTask;
         }
 
+        public Task<bool> UpdateAsync(ReadingRecord record, CancellationToken cancellationToken = default)
+        {
+            var index = _records.FindIndex(r => r.Id == record.Id);
+            if (index < 0)
+            {
+                return Task.FromResult(false);
+            }
+
+            _records[index] = record;
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            var removed = _records.RemoveAll(r => r.Id == id) > 0;
+            return Task.FromResult(removed);
+        }
+
         public Task<IReadOnlyList<ReadingRecord>> GetAllAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<ReadingRecord>>(_records);
 

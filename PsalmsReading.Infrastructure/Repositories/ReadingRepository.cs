@@ -20,6 +20,32 @@ public sealed class ReadingRepository : IReadingRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<bool> UpdateAsync(ReadingRecord record, CancellationToken cancellationToken = default)
+    {
+        var exists = await _dbContext.ReadingRecords.AnyAsync(r => r.Id == record.Id, cancellationToken);
+        if (!exists)
+        {
+            return false;
+        }
+
+        _dbContext.ReadingRecords.Update(record);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var existing = await _dbContext.ReadingRecords.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+        if (existing is null)
+        {
+            return false;
+        }
+
+        _dbContext.ReadingRecords.Remove(existing);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<IReadOnlyList<ReadingRecord>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await _dbContext.ReadingRecords.AsNoTracking().ToListAsync(cancellationToken);

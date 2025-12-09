@@ -15,7 +15,7 @@
     <div class="col-lg-5">
         <div class="card shadow-sm">
             <div class="card-body">
-                <h5 class="card-title">Add reading</h5>
+                <h5 class="card-title">@formTitle</h5>
                 <div class="mb-3">
                     <label class="form-label">Psalm</label>
                     <select class="form-select" @bind="selectedPsalmId">
@@ -30,7 +30,15 @@
                     <label class="form-label">Date read</label>
                     <InputDate @bind-Value="dateRead" class="form-control" />
                 </div>
-                <button class="btn btn-primary" @onclick="SaveReading" disabled="@(isSaving || selectedPsalmId <= 0)">@(isSaving ? "Saving..." : "Save")</button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" @onclick="SaveReading" disabled="@(isSaving || selectedPsalmId <= 0)">
+                        @(isSaving ? "Saving..." : submitLabel)
+                    </button>
+                    @if (editingId is not null)
+                    {
+                        <button class="btn btn-outline-secondary" @onclick="CancelEdit" disabled="isSaving">Cancel</button>
+                    }
+                </div>
                 @if (saveError is not null)
                 {
                     <div class="alert alert-danger mt-3">@saveError</div>
@@ -72,6 +80,7 @@
                                     <th style="width: 20%">Date</th>
                                     <th style="width: 15%">Psalm</th>
                                     <th>Title</th>
+                                    <th style="width: 18%">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -81,6 +90,12 @@
                                         <td>@record.DateRead.ToString("yyyy-MM-dd")</td>
                                         <td>@record.PsalmId</td>
                                         <td>@GetPsalmTitle(record.PsalmId)</td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <button class="btn btn-outline-primary" @onclick="() => StartEdit(record)">Edit</button>
+                                                <button class="btn btn-outline-danger" @onclick="() => DeleteReading(record.Id)">Delete</button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 }
                             </tbody>
@@ -104,6 +119,9 @@
     private DateOnly dateRead = DateOnly.FromDateTime(DateTime.Today);
     private DateOnly? filterFrom;
     private DateOnly? filterTo;
+    private Guid? editingId;
+    private string formTitle => editingId is null ? "Add reading" : "Edit reading";
+    private string submitLabel => editingId is null ? "Save" : "Update";
 
     protected override async Task OnInitializedAsync()
     {
@@ -154,9 +172,19 @@
             saveError = null;
             saveMessage = null;
             isSaving = true;
-            await ApiClient.CreateReadingAsync(new CreateReadingRequest(selectedPsalmId, dateRead));
-            saveMessage = "Reading saved.";
+            if (editingId is null)
+            {
+                await ApiClient.CreateReadingAsync(new CreateReadingRequest(selectedPsalmId, dateRead));
+                saveMessage = "Reading saved.";
+            }
+            else
+            {
+                await ApiClient.UpdateReadingAsync(editingId.Value, new UpdateReadingRequest(selectedPsalmId, dateRead));
+                saveMessage = "Reading updated.";
+            }
+
             await LoadReadings();
+            CancelEdit();
         }
         catch (Exception ex)
         {
@@ -165,6 +193,66 @@
         finally
         {
             isSaving = false;
+        }
+    }
+
+    private void StartEdit(ReadingRecordDto record)
+    {
+        editingId = record.Id;
+        selectedPsalmId = record.PsalmId;
+        dateRead = record.DateRead;
+        saveMessage = null;
+        saveError = null;
+    }
+
+    private void CancelEdit()
+    {
+        editingId = null;
+        selectedPsalmId = 0;
+        dateRead = DateOnly.FromDateTime(DateTime.Today);
+        saveMessage = null;
+        saveError = null;
+    }
+
+    private async Task DeleteReading(Guid id)
+    {
+        var confirm = await JsConfirm("Delete this reading? This cannot be undone.");
+        if (!confirm)
+        {
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            await ApiClient.DeleteReadingAsync(id);
+            await LoadReadings();
+            if (editingId == id)
+            {
+                CancelEdit();
+            }
+        }
+        catch (Exception ex)
+        {
+            saveError = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
+
+    private async Task<bool> JsConfirm(string message)
+    {
+        try
+        {
+            return await JsRuntime.InvokeAsync<bool>("confirm", message);
+        }
+        catch
+        {
+            return false;
         }
     }
 

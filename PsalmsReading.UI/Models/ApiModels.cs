@@ -8,4 +8,6 @@ public record PlannedReadingDto(Guid Id, int PsalmId, DateOnly ScheduledDate, st
 
 public record CreateReadingRequest(int PsalmId, DateOnly DateRead);
 
+public record UpdateReadingRequest(int PsalmId, DateOnly DateRead);
+
 public record ScheduleRequest(DateOnly StartDate, int Months);

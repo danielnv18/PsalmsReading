@@ -33,5 +33,8 @@ This repo will host a .NET 10 solution for scheduling and tracking Sunday psalm 
 - `POST /api/psalms/reimport` — re-read `psalms_full_list.csv`, replace psalms/themes/epigraphs with CSV contents (reading history and planned readings are left as-is).
 - `GET /api/readings?from=yyyy-MM-dd&to=yyyy-MM-dd` — reading history (all if dates omitted).
 - `POST /api/readings` — `{ "psalmId": 1, "dateRead": "2025-01-01" }` to record a reading.
+- `PUT /api/readings/{id}` — update an existing reading (same body shape as POST).
+- `DELETE /api/readings/{id}` — remove a reading.
 - `POST /api/schedule` — `{ "startDate": "2025-01-01", "months": 1|2|3|6 }` generates and stores plans; returns planned readings.
 - `POST /api/schedule/ics` — same body; generates/stores plans and returns ICS content (`text/calendar`).
+- `POST /api/schedule/preview` — generate a schedule without saving (UI uses this for preview).
