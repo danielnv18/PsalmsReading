@@ -8,6 +8,7 @@ This repo will host a .NET 10 solution for scheduling and tracking Sunday psalm 
 3) Refresh psalm data after editing the CSV: while the API is running, call `POST /api/psalms/reimport` to clear psalm/theme/epigraph tables and re-import from the current CSV (reading history and planned readings stay untouched).
 4) Start backend: `dotnet run --project PsalmsReading.Api`.
 5) Start frontend: `dotnet run --project PsalmsReading.UI` (served via WASM, calling the API).
+6) UI API base URL: configure `wwwroot/appsettings.json` in `PsalmsReading.UI` (default `http://localhost:5158/api/`).
 
 ## Current status
 - Projects scaffolded and added to `PsalmsReading.slnx`: Domain, Application, Infrastructure, Api, UI (Blazor WASM), Tests (xUnit).

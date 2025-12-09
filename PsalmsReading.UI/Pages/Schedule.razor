@@ -1,0 +1,160 @@
+﻿@page "/schedule"
+@inject ApiClient ApiClient
+
+<PageTitle>Schedule</PageTitle>
+
+<h1>Schedule generator</h1>
+<p class="text-muted">Applies the Sunday rules from the backend (short psalms, exclusions, alabanza on first Sundays, mesiánico in December, Holy Week priority, etc.).</p>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Create a schedule</h5>
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Start date</label>
+                <InputDate @bind-Value="startDate" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Months</label>
+                <select class="form-select" @bind="months">
+                    @foreach (var option in allowedMonths)
+                    {
+                        <option value="@option">@option</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-5 d-flex gap-2">
+                <button class="btn btn-primary" @onclick="GenerateSchedule" disabled="isWorking">@(isWorking ? "Working..." : "Generate")</button>
+                <button class="btn btn-outline-primary" @onclick="GenerateScheduleWithIcs" disabled="isWorking">@(isWorking ? "Working..." : "Generate + ICS")</button>
+            </div>
+        </div>
+        @if (error is not null)
+        {
+            <div class="alert alert-danger mt-3">@error</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(icsDownloadUrl))
+        {
+            <div class="alert alert-success mt-3 d-flex align-items-center justify-content-between">
+                <span>ICS ready.</span>
+                <a class="btn btn-success" href="@icsDownloadUrl" download="@icsFileName">Download ICS</a>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="card-title mb-0">Planned readings</h5>
+            <span class="text-muted">@plans.Count plan(s)</span>
+        </div>
+        @if (isWorking)
+        {
+            <p><em>Building schedule...</em></p>
+        }
+        else if (plans.Count == 0)
+        {
+            <p>No plans yet. Generate a schedule to see the dates.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 20%">Date</th>
+                            <th style="width: 15%">Psalm</th>
+                            <th>Title</th>
+                            <th style="width: 30%">Rule applied</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var plan in plans.OrderBy(p => p.ScheduledDate))
+                        {
+                            <tr>
+                                <td>@plan.ScheduledDate.ToString("yyyy-MM-dd")</td>
+                                <td>@plan.PsalmId</td>
+                                <td>@GetPsalmTitle(plan.PsalmId)</td>
+                                <td>@plan.RuleApplied</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private readonly int[] allowedMonths = new[] { 1, 2, 3, 6 };
+    private List<PsalmDto> psalms = new();
+    private List<PlannedReadingDto> plans = new();
+    private DateOnly startDate = DateOnly.FromDateTime(DateTime.Today);
+    private int months = 1;
+    private string? error;
+    private bool isWorking;
+    private string? icsDownloadUrl;
+    private string icsFileName = "psalm-schedule.ics";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPsalms();
+    }
+
+    private async Task LoadPsalms()
+    {
+        try
+        {
+            psalms = (await ApiClient.GetPsalmsAsync()).OrderBy(p => p.Id).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private async Task GenerateSchedule()
+    {
+        await GenerateInternal(includeIcs: false);
+    }
+
+    private async Task GenerateScheduleWithIcs()
+    {
+        await GenerateInternal(includeIcs: true);
+    }
+
+    private async Task GenerateInternal(bool includeIcs)
+    {
+        try
+        {
+            error = null;
+            icsDownloadUrl = null;
+            isWorking = true;
+
+            var request = new ScheduleRequest(startDate, months);
+            plans = (await ApiClient.GenerateScheduleAsync(request)).ToList();
+
+            if (includeIcs)
+            {
+                var ics = await ApiClient.GenerateScheduleIcsAsync(request);
+                if (!string.IsNullOrWhiteSpace(ics))
+                {
+                    var content = Uri.EscapeDataString(ics);
+                    icsDownloadUrl = $"data:text/calendar;charset=utf-8,{content}";
+                    icsFileName = $"psalm-schedule-{startDate:yyyyMMdd}-m{months}.ics";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            isWorking = false;
+        }
+    }
+
+    private string GetPsalmTitle(int id) =>
+        psalms.FirstOrDefault(p => p.Id == id)?.Title ?? "(not loaded)";
+}

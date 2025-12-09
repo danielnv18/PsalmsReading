@@ -1,0 +1,180 @@
+﻿@page "/readings"
+@inject ApiClient ApiClient
+
+<PageTitle>Readings</PageTitle>
+
+<h1>Reading history</h1>
+<p class="text-muted">Capture the Sunday you read a psalm. Only the date is stored.</p>
+
+@if (loadError is not null)
+{
+    <div class="alert alert-danger">@loadError</div>
+}
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Add reading</h5>
+                <div class="mb-3">
+                    <label class="form-label">Psalm</label>
+                    <select class="form-select" @bind="selectedPsalmId">
+                        <option value="0">Select a psalm</option>
+                        @foreach (var psalm in psalms)
+                        {
+                            <option value="@psalm.Id">@psalm.Id - @psalm.Title</option>
+                        }
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Date read</label>
+                    <InputDate @bind-Value="dateRead" class="form-control" />
+                </div>
+                <button class="btn btn-primary" @onclick="SaveReading" disabled="@(isSaving || selectedPsalmId <= 0)">@(isSaving ? "Saving..." : "Save")</button>
+                @if (saveError is not null)
+                {
+                    <div class="alert alert-danger mt-3">@saveError</div>
+                }
+                @if (saveMessage is not null)
+                {
+                    <div class="alert alert-success mt-3">@saveMessage</div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title mb-0">History</h5>
+                    <div class="d-flex gap-2">
+                        <InputDate @bind-Value="filterFrom" class="form-control" placeholder="From" />
+                        <InputDate @bind-Value="filterTo" class="form-control" placeholder="To" />
+                        <button class="btn btn-outline-secondary" @onclick="LoadReadings" disabled="isLoading">Apply</button>
+                        <button class="btn btn-link text-decoration-none" @onclick="ResetFilters" disabled="isLoading">Reset</button>
+                    </div>
+                </div>
+
+                @if (isLoading)
+                {
+                    <p><em>Loading readings...</em></p>
+                }
+                else if (readings.Count == 0)
+                {
+                    <p>No readings recorded.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-striped align-middle">
+                            <thead>
+                                <tr>
+                                    <th style="width: 20%">Date</th>
+                                    <th style="width: 15%">Psalm</th>
+                                    <th>Title</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var record in readings.OrderByDescending(r => r.DateRead))
+                                {
+                                    <tr>
+                                        <td>@record.DateRead.ToString("yyyy-MM-dd")</td>
+                                        <td>@record.PsalmId</td>
+                                        <td>@GetPsalmTitle(record.PsalmId)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<PsalmDto> psalms = new();
+    private List<ReadingRecordDto> readings = new();
+    private bool isLoading = true;
+    private bool isSaving;
+    private string? loadError;
+    private string? saveError;
+    private string? saveMessage;
+    private int selectedPsalmId;
+    private DateOnly dateRead = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly? filterFrom;
+    private DateOnly? filterTo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPsalms();
+        await LoadReadings();
+    }
+
+    private async Task LoadPsalms()
+    {
+        try
+        {
+            psalms = (await ApiClient.GetPsalmsAsync()).OrderBy(p => p.Id).ToList();
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+        }
+    }
+
+    private async Task LoadReadings()
+    {
+        try
+        {
+            loadError = null;
+            isLoading = true;
+            readings = (await ApiClient.GetReadingsAsync(filterFrom, filterTo)).ToList();
+        }
+        catch (Exception ex)
+        {
+            loadError = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveReading()
+    {
+        if (selectedPsalmId <= 0)
+        {
+            saveError = "Please select a psalm.";
+            return;
+        }
+
+        try
+        {
+            saveError = null;
+            saveMessage = null;
+            isSaving = true;
+            await ApiClient.CreateReadingAsync(new CreateReadingRequest(selectedPsalmId, dateRead));
+            saveMessage = "Reading saved.";
+            await LoadReadings();
+        }
+        catch (Exception ex)
+        {
+            saveError = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ResetFilters()
+    {
+        filterFrom = null;
+        filterTo = null;
+        _ = LoadReadings();
+    }
+
+    private string GetPsalmTitle(int id) =>
+        psalms.FirstOrDefault(p => p.Id == id)?.Title ?? "(not loaded)";
+}
