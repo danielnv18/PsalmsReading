@@ -4,7 +4,10 @@
 <PageTitle>Schedule</PageTitle>
 
 <h1>Schedule generator</h1>
-<p class="text-muted">Applies the Sunday rules from the backend (short psalms, exclusions, alabanza on first Sundays, mesiánico in December, Holy Week priority, etc.).</p>
+<p class="text-muted">
+    Applies the Sunday rules from the backend (short psalms, exclusions, alabanza on first Sundays,
+    mesiánico in December, Holy Week priority, etc.).
+</p>
 
 <div class="card shadow-sm mb-4">
     <div class="card-body">
@@ -24,8 +27,15 @@
                 </select>
             </div>
             <div class="col-md-5 d-flex gap-2">
-                <button class="btn btn-primary" @onclick="GenerateSchedule" disabled="isWorking">@(isWorking ? "Working..." : "Generate")</button>
-                <button class="btn btn-outline-primary" @onclick="GenerateScheduleWithIcs" disabled="isWorking">@(isWorking ? "Working..." : "Generate + ICS")</button>
+                <button class="btn btn-outline-secondary" @onclick="PreviewSchedule" disabled="@isWorking">
+                    @(isWorking ? "Working..." : "Preview")
+                </button>
+                <button class="btn btn-primary" @onclick="GenerateSchedule" disabled="@isWorking">
+                    @(isWorking ? "Working..." : "Save schedule")
+                </button>
+                <button class="btn btn-success" @onclick="GenerateScheduleWithIcs" disabled="@isWorking">
+                    @(isWorking ? "Working..." : "Save + ICS")
+                </button>
             </div>
         </div>
         @if (error is not null)
@@ -92,7 +102,7 @@
     private DateOnly startDate = DateOnly.FromDateTime(DateTime.Today);
     private int months = 1;
     private string? error;
-    private bool isWorking;
+    private bool isWorking = false;
     private string? icsDownloadUrl;
     private string icsFileName = "psalm-schedule.ics";
 
@@ -115,15 +125,20 @@
 
     private async Task GenerateSchedule()
     {
-        await GenerateInternal(includeIcs: false);
+        await GenerateInternal(includeIcs: false, save: true);
     }
 
     private async Task GenerateScheduleWithIcs()
     {
-        await GenerateInternal(includeIcs: true);
+        await GenerateInternal(includeIcs: true, save: true);
     }
 
-    private async Task GenerateInternal(bool includeIcs)
+    private async Task PreviewSchedule()
+    {
+        await GenerateInternal(includeIcs: false, save: false);
+    }
+
+    private async Task GenerateInternal(bool includeIcs, bool save)
     {
         try
         {
@@ -132,7 +147,9 @@
             isWorking = true;
 
             var request = new ScheduleRequest(startDate, months);
-            plans = (await ApiClient.GenerateScheduleAsync(request)).ToList();
+            plans = save
+            ? (await ApiClient.GenerateScheduleAsync(request)).ToList()
+            : (await ApiClient.PreviewScheduleAsync(request)).ToList();
 
             if (includeIcs)
             {
@@ -156,5 +173,5 @@
     }
 
     private string GetPsalmTitle(int id) =>
-        psalms.FirstOrDefault(p => p.Id == id)?.Title ?? "(not loaded)";
+    psalms.FirstOrDefault(p => p.Id == id)?.Title ?? "(not loaded)";
 }

@@ -123,6 +123,17 @@ api.MapPost("/schedule", async (ScheduleRequest request, IReadingScheduler sched
     return Results.Ok(planned.Select(MapPlannedReading));
 });
 
+api.MapPost("/schedule/preview", async (ScheduleRequest request, IReadingScheduler scheduler, CancellationToken cancellationToken) =>
+{
+    if (!IsValidMonths(request.Months))
+    {
+        return Results.BadRequest("Months must be one of 1, 2, 3, 6.");
+    }
+
+    var planned = await scheduler.GenerateScheduleAsync(request.StartDate, request.Months, cancellationToken);
+    return Results.Ok(planned.Select(MapPlannedReading));
+});
+
 api.MapPost("/schedule/ics", async (ScheduleRequest request, IReadingScheduler scheduler, IPlannedReadingRepository plannedRepository, ICalendarExporter exporter, CancellationToken cancellationToken) =>
 {
     if (!IsValidMonths(request.Months))

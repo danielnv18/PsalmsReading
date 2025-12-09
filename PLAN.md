@@ -79,7 +79,7 @@ Status: Completed. Minimal API exposes psalm listing, reading history/creation, 
 1) Blazor WASM pages: psalm catalog, reading history (add date), scheduler (1/2/3/6 months, download ICS).
 2) Wire HTTP client to API endpoints.
 3) `dotnet run --project PsalmsReading.UI` to verify.
-Status: Completed. UI now has psalm catalog, reading history entry/filter, scheduler with ICS download. HttpClient reads `ApiBaseUrl` from `wwwroot/appsettings.json` and uses the API endpoints.
+Status: Completed. UI now has psalm catalog, reading history entry/filter, scheduler with preview (no save), save, and ICS download. HttpClient reads `ApiBaseUrl` from `wwwroot/appsettings.json` and uses the API endpoints.
 
 ### Phase 7 — Polish
 1) `dotnet format`, `dotnet build`, `dotnet test`.

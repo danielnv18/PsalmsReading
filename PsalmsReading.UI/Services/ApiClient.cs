@@ -50,6 +50,15 @@ public sealed class ApiClient
         return result ?? new List<PlannedReadingDto>();
     }
 
+    public async Task<IReadOnlyList<PlannedReadingDto>> PreviewScheduleAsync(ScheduleRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync("schedule/preview", request, _jsonOptions, cancellationToken);
+        await EnsureSuccess(response);
+
+        var result = await response.Content.ReadFromJsonAsync<List<PlannedReadingDto>>(_jsonOptions, cancellationToken);
+        return result ?? new List<PlannedReadingDto>();
+    }
+
     public async Task<string> GenerateScheduleIcsAsync(ScheduleRequest request, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsJsonAsync("schedule/ics", request, _jsonOptions, cancellationToken);
