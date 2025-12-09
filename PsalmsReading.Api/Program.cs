@@ -59,6 +59,20 @@ api.MapGet("/psalms/{id:int}", async (int id, IPsalmRepository repository, Cance
     return psalm is null ? Results.NotFound() : Results.Ok(MapPsalm(psalm));
 });
 
+api.MapPost("/psalms/reimport", async (IPsalmImportService importService, IHostEnvironment environment, CancellationToken cancellationToken) =>
+{
+    var csvPath = DatabaseInitializationExtensions.FindCsv(environment);
+    if (csvPath is null)
+    {
+        return Results.NotFound("CSV file not found. Place psalms_full_list.csv next to the API project or in the output folder.");
+    }
+
+    await using var stream = File.OpenRead(csvPath);
+    await importService.ReimportAsync(stream, cancellationToken);
+
+    return Results.Ok(new { message = "Psalms re-imported from CSV.", source = csvPath });
+});
+
 api.MapGet("/readings", async (DateOnly? from, DateOnly? to, IReadingRepository repository, CancellationToken cancellationToken) =>
 {
     if (from.HasValue && to.HasValue)

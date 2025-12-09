@@ -3,4 +3,5 @@
 public interface IPsalmImportService
 {
     Task ImportIfEmptyAsync(Stream csvStream, CancellationToken cancellationToken = default);
+    Task ReimportAsync(Stream csvStream, CancellationToken cancellationToken = default);
 }

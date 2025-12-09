@@ -1,3 +1,3 @@
-namespace PsalmsReading.Api.Contracts;
+﻿namespace PsalmsReading.Api.Contracts;
 
 public sealed record ScheduleRequest(DateOnly StartDate, int Months);

@@ -66,14 +66,14 @@ Status: Completed. Packages added; DbContext/configurations created; repositorie
 2) Implement scheduling service with the rules listed above (Easter/Holy Week calculation).
 3) Implement ICS exporter with the provided template.
 4) Add tests for scheduling/ICS.
-Status: Completed. Scheduling service with priority rules (Holy Week, December mesiánico, first Sunday alabanza, theme fallbacks, short readings, exclusions, least-read ordering) plus ICS exporter that uses the provided body template. Added unit tests for key scheduling rules. Pending local command: `dotnet add PsalmsReading.Infrastructure package Ical.Net` if not already restored.
+Status: Completed. Scheduling service with priority rules (Holy Week, December mesiánico, first Sunday alabanza, theme fallbacks, short readings, exclusions, least-read ordering) plus ICS exporter that uses the provided body template. Added unit tests for key scheduling rules.
 
 ### Phase 5 — API
 1) Add package: `Swashbuckle.AspNetCore`.
 2) Minimal API endpoints: psalms, readings, schedule generation/export.
 3) Hook up DI for Infrastructure services.
 4) `dotnet run --project PsalmsReading.Api` to verify.
-Status: Not started.
+Status: Completed. Minimal API exposes psalm listing, reading history/creation, schedule generation and ICS export, plus a CSV re-import endpoint. Swagger/OpenAPI enabled; DbContext wired to Sqlite with startup migration + seed. HTTPS redirect removed; fixed ports in launch settings.
 
 ### Phase 6 — UI
 1) Blazor WASM pages: psalm catalog, reading history (add date), scheduler (1/2/3/6 months, download ICS).

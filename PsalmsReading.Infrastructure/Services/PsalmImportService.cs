@@ -23,6 +23,18 @@ public sealed class PsalmImportService : IPsalmImportService
             return;
         }
 
+        var records = await ReadPsalmsFromCsvAsync(csvStream, cancellationToken);
+        await _psalmRepository.AddRangeAsync(records, cancellationToken);
+    }
+
+    public async Task ReimportAsync(Stream csvStream, CancellationToken cancellationToken = default)
+    {
+        var records = await ReadPsalmsFromCsvAsync(csvStream, cancellationToken);
+        await _psalmRepository.ReplaceAllAsync(records, cancellationToken);
+    }
+
+    private static async Task<IReadOnlyList<Psalm>> ReadPsalmsFromCsvAsync(Stream csvStream, CancellationToken cancellationToken)
+    {
         using var reader = new StreamReader(csvStream);
         using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
         {
@@ -31,7 +43,7 @@ public sealed class PsalmImportService : IPsalmImportService
             BadDataFound = null,
             MissingFieldFound = null,
             TrimOptions = TrimOptions.Trim,
-            PrepareHeaderForMatch = args => args.Header?.Trim().ToLowerInvariant(),
+            PrepareHeaderForMatch = args => args.Header?.Trim().ToLowerInvariant() ?? string.Empty,
         });
 
         var records = new List<Psalm>();
@@ -51,7 +63,7 @@ public sealed class PsalmImportService : IPsalmImportService
             records.Add(psalm);
         }
 
-        await _psalmRepository.AddRangeAsync(records, cancellationToken);
+        return records;
     }
 
     private static IReadOnlyList<string> SplitList(string? value)

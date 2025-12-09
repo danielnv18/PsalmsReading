@@ -168,6 +168,30 @@ public sealed class PsalmRepository : IPsalmRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task ReplaceAllAsync(IEnumerable<Psalm> psalms, CancellationToken cancellationToken = default)
+    {
+        var list = psalms.ToList();
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        await _dbContext.PsalmEpigraphs.ExecuteDeleteAsync(cancellationToken);
+        await _dbContext.PsalmThemes.ExecuteDeleteAsync(cancellationToken);
+        await _dbContext.Psalms.ExecuteDeleteAsync(cancellationToken);
+        await _dbContext.Epigraphs.ExecuteDeleteAsync(cancellationToken);
+        await _dbContext.Themes.ExecuteDeleteAsync(cancellationToken);
+
+        if (list.Count > 0)
+        {
+            await AddRangeAsync(list, cancellationToken);
+        }
+        else
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     public Task<bool> AnyAsync(CancellationToken cancellationToken = default)
     {
         return _dbContext.Psalms.AsNoTracking().AnyAsync(cancellationToken);

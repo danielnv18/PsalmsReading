@@ -14,7 +14,7 @@ internal static class DatabaseInitializationExtensions
 
         await context.Database.MigrateAsync(cancellationToken);
 
-        var csvPath = FindCsv(app);
+        var csvPath = FindCsv(app.Environment);
         if (csvPath is null)
         {
             app.Logger.LogWarning("Seed skipped: CSV file not found in content root or output folder.");
@@ -25,11 +25,11 @@ internal static class DatabaseInitializationExtensions
         await importService.ImportIfEmptyAsync(stream, cancellationToken);
     }
 
-    private static string? FindCsv(WebApplication app)
+    internal static string? FindCsv(IHostEnvironment environment)
     {
         var candidates = new[]
         {
-            Path.Combine(app.Environment.ContentRootPath, "psalms_full_list.csv"),
+            Path.Combine(environment.ContentRootPath, "psalms_full_list.csv"),
             Path.Combine(AppContext.BaseDirectory, "psalms_full_list.csv")
         };
 

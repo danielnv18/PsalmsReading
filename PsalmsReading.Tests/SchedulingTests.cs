@@ -74,6 +74,9 @@ public class SchedulingTests
         public Task AddRangeAsync(IEnumerable<Psalm> psalms, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
 
+        public Task ReplaceAllAsync(IEnumerable<Psalm> psalms, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
         public Task<bool> AnyAsync(CancellationToken cancellationToken = default) => Task.FromResult(_psalms.Any());
     }
 

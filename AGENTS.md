@@ -6,7 +6,7 @@
 - Data: `psalms_full_list.csv` seeds the database on first run; afterward, all reads/writes go through the database. Themes and epigraphs are normalized (lookup tables + join tables).
 
 ## Build, Test, and Development Commands
-- Use the .NET CLI for everything (packages, migrations, formatting, builds). Avoid manual edits that bypass CLI-generated artifacts.
+- Use the .NET CLI for everything (packages, migrations, formatting, builds). Avoid manual edits that bypass CLI-generated artifacts, and prefer to surface CLI commands for the user to run when possible (network access is restricted).
 - Restore/build solution: `dotnet restore` then `dotnet build`.
 - Run API: `dotnet run --project PsalmsReading.Api` (seeds DB from `psalms_full_list.csv` on first run if empty).
 - Run UI: `dotnet run --project PsalmsReading.UI`.
