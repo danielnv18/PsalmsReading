@@ -12,6 +12,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.UseUrls("http://localhost:5158", "https://localhost:7158");
 
+var isReimportCommand = args.Any(a => string.Equals(a, "--reimport", StringComparison.OrdinalIgnoreCase));
+
 builder.Services.AddDbContext<PsalmsDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -42,6 +44,27 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// CLI helper: dotnet run --project PsalmsReading.Api -- --reimport
+if (isReimportCommand)
+{
+    using var scope = app.Services.CreateScope();
+    var services = scope.ServiceProvider;
+    var importService = services.GetRequiredService<IPsalmImportService>();
+    var environment = services.GetRequiredService<IHostEnvironment>();
+
+    var csvPath = DatabaseInitializationExtensions.FindCsv(environment);
+    if (csvPath is null)
+    {
+        Console.WriteLine("CSV file not found. Place psalms_full_list.csv next to the API project or in the output folder.");
+        return;
+    }
+
+    await using var stream = File.OpenRead(csvPath);
+    await importService.ReimportAsync(stream);
+    Console.WriteLine($"Psalms re-imported from: {csvPath}");
+    return;
+}
 
 if (app.Environment.IsDevelopment())
 {

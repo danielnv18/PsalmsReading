@@ -1,40 +1,26 @@
 # PsalmsReading
 
-This repo will host a .NET 10 solution for scheduling and tracking Sunday psalm readings, with a Blazor WASM frontend (`PsalmsReading.UI`) and a minimal API backend. Data comes from `psalms_full_list.csv` (Spanish), while code uses English identifiers.
+.NET 10 clean-architecture solution for scheduling and tracking Sunday psalm readings. Data stays in Spanish (from `psalms_full_list.csv`); code uses English identifiers. Frontend: Blazor WASM (`PsalmsReading.UI`). Backend: minimal API (`PsalmsReading.Api`) with Sqlite.
 
-## How it runs
-1) Restore and build: `dotnet restore` then `dotnet build`.
-2) Apply migrations/seed: run the API project, which will seed Sqlite from `psalms_full_list.csv` on first launch.
-3) Refresh psalm data after editing the CSV: while the API is running, call `POST /api/psalms/reimport` to clear psalm/theme/epigraph tables and re-import from the current CSV (reading history and planned readings stay untouched).
-4) Start backend: `dotnet run --project PsalmsReading.Api`.
-5) Start frontend: `dotnet run --project PsalmsReading.UI` (served via WASM, calling the API).
-6) UI API base URL: configure `wwwroot/appsettings.json` in `PsalmsReading.UI` (default `http://localhost:5158/api/`).
+## Run locally
+- Restore/build: `dotnet restore` then `dotnet build`.
+- Start API (seeds DB on first run from `psalms_full_list.csv`): `dotnet run --project PsalmsReading.Api` (launch settings: http://localhost:5158, https://localhost:7158).
+- Start UI: `dotnet run --project PsalmsReading.UI` (launch settings: http://localhost:5174, https://localhost:7174). UI calls the API base URL from `PsalmsReading.UI/wwwroot/appsettings.json` (default `http://localhost:5158/api/`).
+- Swagger/OpenAPI: browse `http://localhost:5158/swagger` (or `/openapi/v1.json`).
 
-## Current status
-- Projects scaffolded and added to `PsalmsReading.slnx`: Domain, Application, Infrastructure, Api, UI (Blazor WASM), Tests (xUnit).
-- Infrastructure: EF Core Sqlite with normalized themes/epigraphs, repositories, CSV import service, scheduling service, ICS exporter, and migrations applied to `psalms.db`.
-- API: minimal API with Swagger/OpenAPI, database seeding, scheduling endpoints, and a re-import endpoint for refreshing psalm data from CSV.
-- Tests: unit tests for domain helpers and scheduling rules.
-- Solution file in use: `PsalmsReading.slnx` (no `.sln`).
+## Re-import psalm data
+- Edit `psalms_full_list.csv` in the repo root.
+- With the API running, call `POST /api/psalms/reimport` to replace psalm/theme/epigraph data from the CSV. Reading history and planned readings are left intact.
+- CLI (without starting the web host): `dotnet run --project PsalmsReading.Api -- --reimport` (reads the CSV and exits).
 
-## Next steps (summary)
-- Build the Blazor UI pages (catalog, reading history entry, scheduler/ICS download), wire them to the API, then format/build/test.
+## Scheduling logic (where and what)
+- Implementation: `PsalmsReading.Infrastructure/Services/ReadingScheduler.cs`.
+- Rules: only psalms with `TotalVerses <= 30`; exclude 35, 55, 59, 69, 79, 109, 137; prioritize least-read; Holy Week Sundays pick among 113–118 (fewest reads); December prefers mesiánico (type then theme); first Sunday prefers alabanza (type then theme); otherwise least-read. No duplicates per generated schedule. Easter is inferred per year. ICS export is in `PsalmsReading.Infrastructure/Services/CalendarExporter.cs` (uses the provided body template and Bible.com link).
 
-## Scheduling logic (location)
-- Engine: `PsalmsReading.Infrastructure/Services/ReadingScheduler.cs` implements the rules.
-- Rules applied in order: (1) only psalms with `TotalVerses <= 30`; (2) exclude 35, 55, 59, 69, 79, 109, 137; (3) prefer least-read; (4) Palm/Easter/after Easter Sundays pick among 113–118 (fewest reads); (5) December prefers `mesiánico` (type, then theme fallback); (6) first Sunday of each month prefers `alabanza` (type, then theme fallback); (7) otherwise general least-read; no duplicates in a generated schedule.
-- Easter/Holy Week: inferred per year (Palm = Easter - 7 days; Sunday after Easter = +7 days).
-- ICS export: `PsalmsReading.Infrastructure/Services/CalendarExporter.cs` builds events for planned readings using the required body template and Bible.com link.
-
-## API endpoints (minimal API)
-- Base path: `/api`.
-- Default ports (via launch settings): HTTP `http://localhost:5158`, HTTPS `https://localhost:7158`. Swagger UI at `/swagger`, OpenAPI JSON at `/openapi/v1.json`.
-- `GET /api/psalms` — list psalms (with epigraphs/themes). `GET /api/psalms/{id}` — single psalm.
-- `POST /api/psalms/reimport` — re-read `psalms_full_list.csv`, replace psalms/themes/epigraphs with CSV contents (reading history and planned readings are left as-is).
-- `GET /api/readings?from=yyyy-MM-dd&to=yyyy-MM-dd` — reading history (all if dates omitted).
-- `POST /api/readings` — `{ "psalmId": 1, "dateRead": "2025-01-01" }` to record a reading.
-- `PUT /api/readings/{id}` — update an existing reading (same body shape as POST).
-- `DELETE /api/readings/{id}` — remove a reading.
-- `POST /api/schedule` — `{ "startDate": "2025-01-01", "months": 1|2|3|6 }` generates and stores plans; returns planned readings.
-- `POST /api/schedule/ics` — same body; generates/stores plans and returns ICS content (`text/calendar`).
-- `POST /api/schedule/preview` — generate a schedule without saving (UI uses this for preview).
+## Project structure (solution `PsalmsReading.slnx`)
+- `PsalmsReading.Domain`: entities (Psalm, ReadingRecord, PlannedReading) with English identifiers.
+- `PsalmsReading.Application`: interfaces for repositories, scheduling, calendar export, import.
+- `PsalmsReading.Infrastructure`: EF Core Sqlite `PsalmsDbContext`, repositories, CSV import, scheduling engine, ICS exporter.
+- `PsalmsReading.Api`: minimal API, DI wiring, seeding/reimport endpoint, Swagger.
+- `PsalmsReading.UI`: Blazor WASM UI (catalog, reading history CRUD, scheduler preview/save/ICS).
+- `PsalmsReading.Tests`: xUnit tests (domain, scheduling, import/ICS).
