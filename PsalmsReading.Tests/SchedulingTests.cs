@@ -57,6 +57,44 @@ public class SchedulingTests
         Assert.Contains(plans, p => p.PsalmId == 11);
     }
 
+    [Fact]
+    public async Task Excludes_Long_And_Banned_Psalms()
+    {
+        var psalms = new List<Psalm>
+        {
+            new(35, "Excluded", 20, null, null, new List<string>()), // banned id
+            new(120, "Too Long", 35, null, null, new List<string>()), // > 30 verses
+            new(42, "Allowed", 20, null, null, new List<string>())
+        };
+
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository());
+        var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 2, 1), 1);
+
+        Assert.Single(plans);
+        Assert.Equal(42, plans[0].PsalmId);
+    }
+
+    [Fact]
+    public async Task First_Sunday_Falls_Back_When_No_Alabanza()
+    {
+        var psalms = new List<Psalm>
+        {
+            new(1, "General Low Reads", 20, null, null, new List<string>()),
+            new(2, "General More Reads", 20, null, null, new List<string>())
+        };
+
+        var pastReads = new List<ReadingRecord>
+        {
+            new(Guid.NewGuid(), 2, new DateOnly(2024, 1, 7)),
+            new(Guid.NewGuid(), 2, new DateOnly(2024, 2, 7)),
+        };
+
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(pastReads));
+        var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 5, 1), 1);
+
+        Assert.Contains(plans, p => p.PsalmId == 1);
+    }
+
     private sealed class FakePsalmRepository : IPsalmRepository
     {
         private readonly IReadOnlyList<Psalm> _psalms;
