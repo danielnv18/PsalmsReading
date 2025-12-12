@@ -95,6 +95,92 @@ public class SchedulingTests
         Assert.Contains(plans, p => p.PsalmId == 1);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-3)]
+    public async Task Throws_When_Months_Not_Positive(int months)
+    {
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(new List<Psalm>()), new FakeReadingRepository());
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => scheduler.GenerateScheduleAsync(new DateOnly(2025, 1, 1), months));
+    }
+
+    [Fact]
+    public async Task Stops_When_Psalms_Are_Exhausted()
+    {
+        var psalms = new List<Psalm>
+        {
+            new(5, "Only Psalm", 20, null, null, new List<string>())
+        };
+
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository());
+        var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 1, 12), 3);
+
+        Assert.Single(plans);
+        Assert.Equal(5, plans[0].PsalmId);
+    }
+
+    [Fact]
+    public async Task Orders_By_ReadCounts_Then_Verses_Then_Id()
+    {
+        var psalms = new List<Psalm>
+        {
+            new(10, "Most Read", 20, null, null, new List<string>()),
+            new(11, "Tie One", 10, null, null, new List<string>()),
+            new(12, "Tie Two", 10, null, null, new List<string>()),
+            new(13, "Never Read", 15, null, null, new List<string>())
+        };
+
+        var reads = new List<ReadingRecord>
+        {
+            new(Guid.NewGuid(), 10, new DateOnly(2024, 1, 1)),
+            new(Guid.NewGuid(), 10, new DateOnly(2024, 1, 8)),
+            new(Guid.NewGuid(), 10, new DateOnly(2024, 1, 15)),
+            new(Guid.NewGuid(), 10, new DateOnly(2024, 1, 22)),
+            new(Guid.NewGuid(), 10, new DateOnly(2024, 1, 29)),
+            new(Guid.NewGuid(), 11, new DateOnly(2024, 2, 5)),
+            new(Guid.NewGuid(), 12, new DateOnly(2024, 2, 12))
+        };
+
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(reads));
+        var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 3, 9), 1);
+
+        var orderedIds = plans.Select(p => p.PsalmId).ToList();
+        Assert.Equal(new List<int> { 13, 11, 12, 10 }, orderedIds);
+    }
+
+    [Fact]
+    public async Task Uses_HolyWeek_Psalms_For_All_Sundays()
+    {
+        var psalms = new List<Psalm>
+        {
+            new(200, "General", 10, null, null, new List<string>()),
+            new(113, "Palm", 10, null, null, new List<string>()),
+            new(114, "Easter", 10, null, null, new List<string>()),
+            new(115, "After Easter", 10, null, null, new List<string>()),
+            new(300, "Alabanza", 10, "alabanza", null, new List<string>())
+        };
+
+        var reads = new List<ReadingRecord>
+        {
+            new(Guid.NewGuid(), 113, new DateOnly(2024, 4, 14)),
+            new(Guid.NewGuid(), 113, new DateOnly(2024, 4, 21)),
+            new(Guid.NewGuid(), 113, new DateOnly(2024, 4, 28)),
+            new(Guid.NewGuid(), 115, new DateOnly(2024, 4, 21)),
+            new(Guid.NewGuid(), 115, new DateOnly(2024, 4, 28))
+        };
+
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(reads));
+        var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 4, 7), 1);
+
+        var plansByDate = plans.ToDictionary(p => p.ScheduledDate, p => p.PsalmId);
+
+        Assert.Equal(114, plansByDate[new DateOnly(2025, 4, 13)]);
+        Assert.Equal(115, plansByDate[new DateOnly(2025, 4, 20)]);
+        Assert.Equal(113, plansByDate[new DateOnly(2025, 4, 27)]);
+        Assert.Equal(300, plansByDate[new DateOnly(2025, 5, 4)]);
+    }
+
     private sealed class FakePsalmRepository : IPsalmRepository
     {
         private readonly IReadOnlyList<Psalm> _psalms;
