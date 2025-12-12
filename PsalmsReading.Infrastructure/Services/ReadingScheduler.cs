@@ -32,14 +32,14 @@ public sealed class ReadingScheduler : IReadingScheduler
             .GroupBy(r => r.PsalmId)
             .ToDictionary(g => g.Key, g => g.Count());
 
-        var endDate = startDate.AddMonths(months);
+        DateOnly endDate = startDate.AddMonths(months);
         var sundays = EnumerateSundays(startDate, endDate).ToList();
-        var holyWeekSundays = GetHolyWeekSundays(sundays);
+        HashSet<DateOnly> holyWeekSundays = GetHolyWeekSundays(sundays);
 
         var planned = new List<PlannedReading>();
         var usedPsalmIds = new HashSet<int>();
 
-        foreach (var sunday in sundays)
+        foreach (DateOnly sunday in sundays)
         {
             var available = psalms.Values.Where(p => !usedPsalmIds.Contains(p.Id)).ToList();
             if (available.Count == 0)
@@ -95,7 +95,7 @@ public sealed class ReadingScheduler : IReadingScheduler
 
     private static IEnumerable<DateOnly> EnumerateSundays(DateOnly start, DateOnly end)
     {
-        var current = start;
+        DateOnly current = start;
         // Move to the first Sunday on or after start
         var daysUntilSunday = ((int)DayOfWeek.Sunday - (int)current.DayOfWeek + 7) % 7;
         current = current.AddDays(daysUntilSunday);
@@ -113,15 +113,15 @@ public sealed class ReadingScheduler : IReadingScheduler
     private static HashSet<DateOnly> GetHolyWeekSundays(IEnumerable<DateOnly> sundays)
     {
         var set = new HashSet<DateOnly>();
-        var byYear = sundays.GroupBy(s => s.Year);
+        IEnumerable<IGrouping<int, DateOnly>> byYear = sundays.GroupBy(s => s.Year);
 
-        foreach (var group in byYear)
+        foreach (IGrouping<int, DateOnly> group in byYear)
         {
-            var easter = CalculateEasterSunday(group.Key);
-            var palmSunday = easter.AddDays(-7);
-            var sundayAfterEaster = easter.AddDays(7);
+            DateOnly easter = CalculateEasterSunday(group.Key);
+            DateOnly palmSunday = easter.AddDays(-7);
+            DateOnly sundayAfterEaster = easter.AddDays(7);
 
-            foreach (var candidate in group)
+            foreach (DateOnly candidate in group)
             {
                 if (candidate == palmSunday || candidate == easter || candidate == sundayAfterEaster)
                 {
@@ -155,14 +155,14 @@ public sealed class ReadingScheduler : IReadingScheduler
 
     private static Psalm? SelectByTypeOrTheme(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value)
     {
-        var byType = candidates.Where(p => p.HasType(value));
-        var selected = SelectBest(byType, readCounts);
+        IEnumerable<Psalm> byType = candidates.Where(p => p.HasType(value));
+        Psalm? selected = SelectBest(byType, readCounts);
         if (selected is not null)
         {
             return selected;
         }
 
-        var byTheme = candidates.Where(p => p.HasTheme(value));
+        IEnumerable<Psalm> byTheme = candidates.Where(p => p.HasTheme(value));
         return SelectBest(byTheme, readCounts);
     }
 
