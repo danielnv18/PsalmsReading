@@ -10,11 +10,13 @@ public sealed class ReadingScheduler : IReadingScheduler
 
     private readonly IPsalmRepository _psalmRepository;
     private readonly IReadingRepository _readingRepository;
+    private readonly Random _random;
 
-    public ReadingScheduler(IPsalmRepository psalmRepository, IReadingRepository readingRepository)
+    public ReadingScheduler(IPsalmRepository psalmRepository, IReadingRepository readingRepository, Random? random = null)
     {
         _psalmRepository = psalmRepository;
         _readingRepository = readingRepository;
+        _random = random ?? new Random();
     }
 
     public async Task<IReadOnlyList<PlannedReading>> GenerateScheduleAsync(DateOnly startDate, int months, CancellationToken cancellationToken = default)
@@ -52,7 +54,7 @@ public sealed class ReadingScheduler : IReadingScheduler
 
             if (holyWeekSundays.Contains(sunday))
             {
-                chosen = SelectBest(available.Where(p => HolyWeekPreferredIds.Contains(p.Id)), readCounts);
+                chosen = SelectBestByTier(available.Where(p => HolyWeekPreferredIds.Contains(p.Id)), readCounts);
                 ruleApplied = "HolyWeek";
             }
             else if (sunday.Month == 12)
@@ -67,14 +69,14 @@ public sealed class ReadingScheduler : IReadingScheduler
             }
             else
             {
-                chosen = SelectBest(available, readCounts);
+                chosen = SelectBestByTier(available, readCounts);
                 ruleApplied = "General";
             }
 
             // Fallbacks if a special rule yielded no candidate.
             if (chosen is null)
             {
-                chosen = SelectBest(available, readCounts);
+                chosen = SelectBestByTier(available, readCounts);
                 ruleApplied = "General";
             }
 
@@ -153,25 +155,52 @@ public sealed class ReadingScheduler : IReadingScheduler
         return new DateOnly(year, month, day);
     }
 
-    private static Psalm? SelectByTypeOrTheme(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value)
+    private Psalm? SelectByTypeOrTheme(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value)
     {
         IEnumerable<Psalm> byType = candidates.Where(p => p.HasType(value));
-        Psalm? selected = SelectBest(byType, readCounts);
+        Psalm? selected = SelectBestByTier(byType, readCounts);
         if (selected is not null)
         {
             return selected;
         }
 
         IEnumerable<Psalm> byTheme = candidates.Where(p => p.HasTheme(value));
-        return SelectBest(byTheme, readCounts);
+        return SelectBestByTier(byTheme, readCounts);
     }
 
-    private static Psalm? SelectBest(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts)
+    private Psalm? SelectBestByTier(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts)
     {
-        return candidates
-            .OrderBy(p => readCounts.GetValueOrDefault(p.Id))
-            .ThenBy(p => p.TotalVerses)
-            .ThenBy(p => p.Id)
-            .FirstOrDefault();
+        var candidateList = candidates.ToList();
+        if (candidateList.Count == 0)
+        {
+            return null;
+        }
+
+        // Group by read count, then iterate through tiers in order (least reads first)
+        var groupedByReadCount = candidateList
+            .GroupBy(p => readCounts.GetValueOrDefault(p.Id))
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        foreach (var tier in groupedByReadCount)
+        {
+            var tierList = tier.ToList();
+            if (tierList.Count == 0)
+            {
+                continue;
+            }
+
+            // If 1 or 2 psalms in tier, return the first
+            if (tierList.Count <= 2)
+            {
+                return tierList[0];
+            }
+
+            // If >2 psalms in tier, return a random one
+            var randomIndex = _random.Next(tierList.Count);
+            return tierList[randomIndex];
+        }
+
+        return null;
     }
 }
