@@ -3,21 +3,16 @@ using PsalmsReading.Domain.Entities;
 
 namespace PsalmsReading.Infrastructure.Services;
 
-public sealed class ReadingScheduler : IReadingScheduler
+public sealed class ReadingScheduler(
+    IPsalmRepository psalmRepository,
+    IReadingRepository readingRepository,
+    Random? random = null)
+    : IReadingScheduler
 {
-    private static readonly HashSet<int> ExcludedPsalmIds = new([35, 55, 59, 69, 79, 109, 137]);
-    private static readonly HashSet<int> HolyWeekPreferredIds = new([113, 114, 115, 116, 117, 118]);
+    private static readonly HashSet<int> ExcludedPsalmIds = [35, 55, 59, 69, 79, 109, 137];
+    private static readonly HashSet<int> HolyWeekPreferredIds = [113, 114, 115, 116, 117, 118];
 
-    private readonly IPsalmRepository _psalmRepository;
-    private readonly IReadingRepository _readingRepository;
-    private readonly Random _random;
-
-    public ReadingScheduler(IPsalmRepository psalmRepository, IReadingRepository readingRepository, Random? random = null)
-    {
-        _psalmRepository = psalmRepository;
-        _readingRepository = readingRepository;
-        _random = random ?? new Random();
-    }
+    private readonly Random _random = random ?? new Random();
 
     public async Task<IReadOnlyList<PlannedReading>> GenerateScheduleAsync(DateOnly startDate, int months, CancellationToken cancellationToken = default)
     {
@@ -26,11 +21,11 @@ public sealed class ReadingScheduler : IReadingScheduler
             throw new ArgumentOutOfRangeException(nameof(months), "Months must be positive.");
         }
 
-        var psalms = (await _psalmRepository.GetAllAsync(cancellationToken))
+        var psalms = (await psalmRepository.GetAllAsync(cancellationToken))
             .Where(IsAllowedPsalm)
             .ToDictionary(p => p.Id);
 
-        var readCounts = (await _readingRepository.GetAllAsync(cancellationToken))
+        var readCounts = (await readingRepository.GetAllAsync(cancellationToken))
             .GroupBy(r => r.PsalmId)
             .ToDictionary(g => g.Key, g => g.Count());
 
@@ -157,14 +152,15 @@ public sealed class ReadingScheduler : IReadingScheduler
 
     private Psalm? SelectByTypeOrTheme(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value)
     {
-        IEnumerable<Psalm> byType = candidates.Where(p => p.HasType(value));
+        IEnumerable<Psalm> psalms = candidates as Psalm[] ?? candidates.ToArray();
+        IEnumerable<Psalm> byType = psalms.Where(p => p.HasType(value));
         Psalm? selected = SelectBestByTier(byType, readCounts);
         if (selected is not null)
         {
             return selected;
         }
 
-        IEnumerable<Psalm> byTheme = candidates.Where(p => p.HasTheme(value));
+        IEnumerable<Psalm> byTheme = psalms.Where(p => p.HasTheme(value));
         return SelectBestByTier(byTheme, readCounts);
     }
 
@@ -182,14 +178,8 @@ public sealed class ReadingScheduler : IReadingScheduler
             .OrderBy(g => g.Key)
             .ToList();
 
-        foreach (var tier in groupedByReadCount)
+        foreach (List<Psalm> tierList in groupedByReadCount.Select(tier => tier.ToList()).Where(tierList => tierList.Count != 0))
         {
-            var tierList = tier.ToList();
-            if (tierList.Count == 0)
-            {
-                continue;
-            }
-
             // If 1 or 2 psalms in tier, return the first
             if (tierList.Count <= 2)
             {
