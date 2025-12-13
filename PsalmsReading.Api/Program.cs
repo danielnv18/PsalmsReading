@@ -4,11 +4,12 @@ using PsalmsReading.Api.Contracts;
 using PsalmsReading.Api.Json;
 using PsalmsReading.Application.Interfaces;
 using PsalmsReading.Application.Models;
+using PsalmsReading.Domain.Entities;
 using PsalmsReading.Infrastructure.Data;
 using PsalmsReading.Infrastructure.Repositories;
 using PsalmsReading.Infrastructure.Services;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.UseUrls("http://localhost:5158", "https://localhost:7158");
 
@@ -43,15 +44,15 @@ builder.Services.AddCors(options =>
             .AllowAnyHeader());
 });
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 // CLI helper: dotnet run --project PsalmsReading.Api -- --reimport
 if (isReimportCommand)
 {
-    using var scope = app.Services.CreateScope();
-    var services = scope.ServiceProvider;
-    var importService = services.GetRequiredService<IPsalmImportService>();
-    var environment = services.GetRequiredService<IHostEnvironment>();
+    using IServiceScope scope = app.Services.CreateScope();
+    IServiceProvider services = scope.ServiceProvider;
+    IPsalmImportService importService = services.GetRequiredService<IPsalmImportService>();
+    IHostEnvironment environment = services.GetRequiredService<IHostEnvironment>();
 
     var csvPath = DatabaseInitializationExtensions.FindCsv(environment);
     if (csvPath is null)
@@ -60,7 +61,7 @@ if (isReimportCommand)
         return;
     }
 
-    await using var stream = File.OpenRead(csvPath);
+    await using FileStream stream = File.OpenRead(csvPath);
     await importService.ReimportAsync(stream);
     Console.WriteLine($"Psalms re-imported from: {csvPath}");
     return;
@@ -76,17 +77,17 @@ if (app.Environment.IsDevelopment())
 await app.InitializeDatabaseAsync();
 app.UseCors();
 
-var api = app.MapGroup("/api");
+RouteGroupBuilder api = app.MapGroup("/api");
 
 api.MapGet("/psalms", async (IPsalmRepository repository, CancellationToken cancellationToken) =>
 {
-    var psalms = await repository.GetAllAsync(cancellationToken);
+    IReadOnlyList<Psalm> psalms = await repository.GetAllAsync(cancellationToken);
     return Results.Ok(psalms.Select(MapPsalm));
 });
 
 api.MapGet("/psalms/{id:int}", async (int id, IPsalmRepository repository, CancellationToken cancellationToken) =>
 {
-    var psalm = await repository.GetByIdAsync(id, cancellationToken);
+    Psalm? psalm = await repository.GetByIdAsync(id, cancellationToken);
     return psalm is null ? Results.NotFound() : Results.Ok(MapPsalm(psalm));
 });
 
@@ -98,7 +99,7 @@ api.MapPost("/psalms/reimport", async (IPsalmImportService importService, IHostE
         return Results.NotFound("CSV file not found. Place psalms_full_list.csv next to the API project or in the output folder.");
     }
 
-    await using var stream = File.OpenRead(csvPath);
+    await using FileStream stream = File.OpenRead(csvPath);
     await importService.ReimportAsync(stream, cancellationToken);
 
     return Results.Ok(new { message = "Psalms re-imported from CSV.", source = csvPath });
@@ -108,11 +109,11 @@ api.MapGet("/readings", async (DateOnly? from, DateOnly? to, IReadingRepository 
 {
     if (from.HasValue && to.HasValue)
     {
-        var range = await repository.GetByDateRangeAsync(from.Value, to.Value, cancellationToken);
+        IReadOnlyList<ReadingRecord> range = await repository.GetByDateRangeAsync(from.Value, to.Value, cancellationToken);
         return Results.Ok(range.Select(MapReading));
     }
 
-    var all = await repository.GetAllAsync(cancellationToken);
+    IReadOnlyList<ReadingRecord> all = await repository.GetAllAsync(cancellationToken);
     return Results.Ok(all.Select(MapReading));
 });
 
@@ -121,6 +122,12 @@ api.MapPost("/readings", async (CreateReadingRequest request, IReadingRepository
     if (request.PsalmId <= 0 || request.DateRead == default)
     {
         return Results.BadRequest("PsalmId and DateRead are required.");
+    }
+
+    IReadOnlyList<ReadingRecord> sameDay = await repository.GetByDateRangeAsync(request.DateRead, request.DateRead, cancellationToken);
+    if (sameDay.Any(r => r.PsalmId == request.PsalmId))
+    {
+        return Results.Conflict("A reading for this psalm and date already exists.");
     }
 
     var record = new PsalmsReading.Domain.Entities.ReadingRecord(Guid.NewGuid(), request.PsalmId, request.DateRead);
@@ -133,6 +140,12 @@ api.MapPut("/readings/{id:guid}", async (Guid id, UpdateReadingRequest request, 
     if (id == Guid.Empty || request.PsalmId <= 0 || request.DateRead == default)
     {
         return Results.BadRequest("Id, PsalmId and DateRead are required.");
+    }
+
+    IReadOnlyList<ReadingRecord> sameDay = await repository.GetByDateRangeAsync(request.DateRead, request.DateRead, cancellationToken);
+    if (sameDay.Any(r => r.PsalmId == request.PsalmId && r.Id != id))
+    {
+        return Results.Conflict("A reading for this psalm and date already exists.");
     }
 
     var updated = new PsalmsReading.Domain.Entities.ReadingRecord(id, request.PsalmId, request.DateRead);
@@ -158,10 +171,10 @@ api.MapPost("/schedule", async (ScheduleRequest request, IReadingScheduler sched
         return Results.BadRequest("Months must be one of 1, 2, 3, 6.");
     }
 
-    var start = request.StartDate;
-    var end = start.AddMonths(request.Months);
+    DateOnly start = request.StartDate;
+    DateOnly end = start.AddMonths(request.Months);
 
-    var planned = await scheduler.GenerateScheduleAsync(start, request.Months, cancellationToken);
+    IReadOnlyList<PlannedReading> planned = await scheduler.GenerateScheduleAsync(start, request.Months, cancellationToken);
 
     await plannedRepository.ClearRangeAsync(start, end, cancellationToken);
     await plannedRepository.SavePlansAsync(planned, cancellationToken);
@@ -176,7 +189,7 @@ api.MapPost("/schedule/preview", async (ScheduleRequest request, IReadingSchedul
         return Results.BadRequest("Months must be one of 1, 2, 3, 6.");
     }
 
-    var planned = await scheduler.GenerateScheduleAsync(request.StartDate, request.Months, cancellationToken);
+    IReadOnlyList<PlannedReading> planned = await scheduler.GenerateScheduleAsync(request.StartDate, request.Months, cancellationToken);
     return Results.Ok(planned.Select(MapPlannedReading));
 });
 
@@ -187,10 +200,10 @@ api.MapPost("/schedule/ics", async (ScheduleRequest request, IReadingScheduler s
         return Results.BadRequest("Months must be one of 1, 2, 3, 6.");
     }
 
-    var start = request.StartDate;
-    var end = start.AddMonths(request.Months);
+    DateOnly start = request.StartDate;
+    DateOnly end = start.AddMonths(request.Months);
 
-    var planned = await scheduler.GenerateScheduleAsync(start, request.Months, cancellationToken);
+    IReadOnlyList<PlannedReading> planned = await scheduler.GenerateScheduleAsync(start, request.Months, cancellationToken);
 
     await plannedRepository.ClearRangeAsync(start, end, cancellationToken);
     await plannedRepository.SavePlansAsync(planned, cancellationToken);
@@ -216,3 +229,7 @@ static PlannedReadingDto MapPlannedReading(PsalmsReading.Domain.Entities.Planned
     new(planned.Id, planned.PsalmId, planned.ScheduledDate, planned.RuleApplied);
 
 await app.RunAsync();
+
+public partial class Program
+{
+}

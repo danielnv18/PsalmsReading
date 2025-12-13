@@ -8,9 +8,9 @@ internal static class DatabaseInitializationExtensions
 {
     public static async Task InitializeDatabaseAsync(this WebApplication app, CancellationToken cancellationToken = default)
     {
-        await using var scope = app.Services.CreateAsyncScope();
-        var context = scope.ServiceProvider.GetRequiredService<PsalmsDbContext>();
-        var importService = scope.ServiceProvider.GetRequiredService<IPsalmImportService>();
+        await using AsyncServiceScope scope = app.Services.CreateAsyncScope();
+        PsalmsDbContext context = scope.ServiceProvider.GetRequiredService<PsalmsDbContext>();
+        IPsalmImportService importService = scope.ServiceProvider.GetRequiredService<IPsalmImportService>();
 
         await context.Database.MigrateAsync(cancellationToken);
 
@@ -21,7 +21,7 @@ internal static class DatabaseInitializationExtensions
             return;
         }
 
-        await using var stream = File.OpenRead(csvPath);
+        await using FileStream stream = File.OpenRead(csvPath);
         await importService.ImportIfEmptyAsync(stream, cancellationToken);
     }
 

@@ -87,6 +87,12 @@ public sealed class ApiClient
 
         var content = await response.Content.ReadAsStringAsync();
         var message = string.IsNullOrWhiteSpace(content) ? response.ReasonPhrase : content;
+
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            throw new InvalidOperationException(message ?? "Duplicate reading.");
+        }
+
         throw new InvalidOperationException($"Request failed: {(int)response.StatusCode} {message}");
     }
 }

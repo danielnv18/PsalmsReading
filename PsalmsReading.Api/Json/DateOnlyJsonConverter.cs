@@ -15,7 +15,7 @@ internal sealed class DateOnlyJsonConverter : JsonConverter<DateOnly>
             throw new JsonException("Date value is required.");
         }
 
-        if (!DateOnly.TryParse(value, out var date))
+        if (!DateOnly.TryParse(value, out DateOnly date))
         {
             throw new JsonException("Invalid date format. Use yyyy-MM-dd.");
         }

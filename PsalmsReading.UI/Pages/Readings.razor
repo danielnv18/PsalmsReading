@@ -172,6 +172,13 @@
             saveError = null;
             saveMessage = null;
             isSaving = true;
+
+            if (await HasDuplicateReading(selectedPsalmId, dateRead, editingId))
+            {
+                saveError = "This psalm already has a reading on that date.";
+                return;
+            }
+
             if (editingId is null)
             {
                 await ApiClient.CreateReadingAsync(new CreateReadingRequest(selectedPsalmId, dateRead));
@@ -265,4 +272,11 @@
 
     private string GetPsalmTitle(int id) =>
         psalms.FirstOrDefault(p => p.Id == id)?.Title ?? "(not loaded)";
+
+    private async Task<bool> HasDuplicateReading(int psalmId, DateOnly date, Guid? excludeId)
+    {
+        // Best-effort client-side check; API enforces uniqueness.
+        var allReadings = await ApiClient.GetReadingsAsync();
+        return allReadings.Any(r => r.PsalmId == psalmId && r.DateRead == date && r.Id != excludeId);
+    }
 }
