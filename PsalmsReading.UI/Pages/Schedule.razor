@@ -15,38 +15,38 @@
         <div class="row g-3 align-items-end">
             <div class="col-md-4">
                 <label class="form-label">Start date</label>
-                <InputDate @bind-Value="startDate" class="form-control" />
+                <InputDate @bind-Value="_startDate" class="form-control" />
             </div>
             <div class="col-md-3">
                 <label class="form-label">Months</label>
-                <select class="form-select" @bind="months">
-                    @foreach (var option in allowedMonths)
+                <select class="form-select" @bind="_months">
+                    @foreach (var option in _allowedMonths)
                     {
                         <option value="@option">@option</option>
                     }
                 </select>
             </div>
             <div class="col-md-5 d-flex gap-2">
-                <button class="btn btn-outline-secondary" @onclick="PreviewSchedule" disabled="@isWorking">
-                    @(isWorking ? "Working..." : "Preview")
+                <button class="btn btn-outline-secondary" @onclick="PreviewSchedule" disabled="@_isWorking">
+                    @(_isWorking ? "Working..." : "Preview")
                 </button>
-                <button class="btn btn-primary" @onclick="GenerateSchedule" disabled="@isWorking">
-                    @(isWorking ? "Working..." : "Save schedule")
+                <button class="btn btn-primary" @onclick="GenerateSchedule" disabled="@_isWorking">
+                    @(_isWorking ? "Working..." : "Save schedule")
                 </button>
-                <button class="btn btn-success" @onclick="GenerateScheduleWithIcs" disabled="@isWorking">
-                    @(isWorking ? "Working..." : "Save + ICS")
+                <button class="btn btn-success" @onclick="GenerateScheduleWithIcs" disabled="@_isWorking">
+                    @(_isWorking ? "Working..." : "Save + ICS")
                 </button>
             </div>
         </div>
-        @if (error is not null)
+        @if (_error is not null)
         {
-            <div class="alert alert-danger mt-3">@error</div>
+            <div class="alert alert-danger mt-3">@_error</div>
         }
-        @if (!string.IsNullOrWhiteSpace(icsDownloadUrl))
+        @if (!string.IsNullOrWhiteSpace(_icsDownloadUrl))
         {
             <div class="alert alert-success mt-3 d-flex align-items-center justify-content-between">
                 <span>ICS ready.</span>
-                <a class="btn btn-success" href="@icsDownloadUrl" download="@icsFileName">Download ICS</a>
+                <a class="btn btn-success" href="@_icsDownloadUrl" download="@_icsFileName">Download ICS</a>
             </div>
         }
     </div>
@@ -56,13 +56,13 @@
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="card-title mb-0">Planned readings</h5>
-            <span class="text-muted">@plans.Count plan(s)</span>
+            <span class="text-muted">@_plans.Count plan(s)</span>
         </div>
-        @if (isWorking)
+        @if (_isWorking)
         {
             <p><em>Building schedule...</em></p>
         }
-        else if (plans.Count == 0)
+        else if (_plans.Count == 0)
         {
             <p>No plans yet. Generate a schedule to see the dates.</p>
         }
@@ -79,7 +79,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var plan in plans.OrderBy(p => p.ScheduledDate))
+                        @foreach (var plan in _plans.OrderBy(p => p.ScheduledDate))
                         {
                             <tr>
                                 <td>@plan.ScheduledDate.ToString("yyyy-MM-dd")</td>
@@ -96,15 +96,15 @@
 </div>
 
 @code {
-    private readonly int[] allowedMonths = new[] { 1, 2, 3, 6, 12 };
-    private List<PsalmDto> psalms = new();
-    private List<PlannedReadingDto> plans = new();
-    private DateOnly startDate = DateOnly.FromDateTime(DateTime.Today);
-    private int months = 1;
-    private string? error;
-    private bool isWorking = false;
-    private string? icsDownloadUrl;
-    private string icsFileName = "psalm-schedule.ics";
+    private readonly int[] _allowedMonths = new[] { 1, 2, 3, 6, 12 };
+    private List<PsalmDto> _psalms = new();
+    private List<PlannedReadingDto> _plans = new();
+    private DateOnly _startDate = DateOnly.FromDateTime(DateTime.Today);
+    private int _months = 1;
+    private string? _error;
+    private bool _isWorking = false;
+    private string? _icsDownloadUrl;
+    private string _icsFileName = "psalm-schedule.ics";
 
     protected override async Task OnInitializedAsync()
     {
@@ -115,11 +115,11 @@
     {
         try
         {
-            psalms = (await ApiClient.GetPsalmsAsync()).OrderBy(p => p.Id).ToList();
+            _psalms = (await ApiClient.GetPsalmsAsync()).OrderBy(p => p.Id).ToList();
         }
         catch (Exception ex)
         {
-            error = ex.Message;
+            _error = ex.Message;
         }
     }
 
@@ -142,12 +142,12 @@
     {
         try
         {
-            error = null;
-            icsDownloadUrl = null;
-            isWorking = true;
+            _error = null;
+            _icsDownloadUrl = null;
+            _isWorking = true;
 
-            var request = new ScheduleRequest(startDate, months);
-            plans = save
+            var request = new ScheduleRequest(_startDate, _months);
+            _plans = save
             ? (await ApiClient.GenerateScheduleAsync(request)).ToList()
             : (await ApiClient.PreviewScheduleAsync(request)).ToList();
 
@@ -157,21 +157,21 @@
                 if (!string.IsNullOrWhiteSpace(ics))
                 {
                     var content = Uri.EscapeDataString(ics);
-                    icsDownloadUrl = $"data:text/calendar;charset=utf-8,{content}";
-                    icsFileName = $"psalm-schedule-{startDate:yyyyMMdd}-m{months}.ics";
+                    _icsDownloadUrl = $"data:text/calendar;charset=utf-8,{content}";
+                    _icsFileName = $"psalm-schedule-{_startDate:yyyyMMdd}-m{_months}.ics";
                 }
             }
         }
         catch (Exception ex)
         {
-            error = ex.Message;
+            _error = ex.Message;
         }
         finally
         {
-            isWorking = false;
+            _isWorking = false;
         }
     }
 
     private string GetPsalmTitle(int id) =>
-    psalms.FirstOrDefault(p => p.Id == id)?.Title ?? "(not loaded)";
+    _psalms.FirstOrDefault(p => p.Id == id)?.Title ?? "(not loaded)";
 }

@@ -7,18 +7,18 @@
 <p class="text-muted">Data comes from <code>psalms_full_list.csv</code> imported into the database.</p>
 
 <div class="mb-3">
-    <input class="form-control" placeholder="Filter by title, type, theme, or epigraph..." @bind="searchTerm" @bind:event="oninput" />
+    <input class="form-control" placeholder="Filter by title, type, theme, or epigraph..." @bind="_searchTerm" @bind:event="oninput" />
 </div>
 
-@if (error is not null)
+@if (_error is not null)
 {
-    <div class="alert alert-danger">@error</div>
+    <div class="alert alert-danger">@_error</div>
 }
-else if (isLoading)
+else if (_isLoading)
 {
     <p><em>Loading psalms...</em></p>
 }
-else if (filtered.Count == 0)
+else if (_filtered.Count == 0)
 {
     <p>No psalms found.</p>
 }
@@ -37,7 +37,7 @@ else
                 </tr>
             </thead>
             <tbody>
-                @foreach (var psalm in filtered)
+                @foreach (var psalm in _filtered)
                 {
                     <tr>
                         <td>@psalm.Id</td>
@@ -54,11 +54,11 @@ else
 }
 
 @code {
-    private List<PsalmDto> psalms = new();
-    private List<PsalmDto> filtered = new();
-    private bool isLoading = true;
-    private string? error;
-    private string searchTerm = string.Empty;
+    private List<PsalmDto> _psalms = new();
+    private List<PsalmDto> _filtered = new();
+    private bool _isLoading = true;
+    private string? _error;
+    private string _searchTerm = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -69,31 +69,31 @@ else
     {
         try
         {
-            error = null;
-            isLoading = true;
-            psalms = (await ApiClient.GetPsalmsAsync()).OrderBy(p => p.Id).ToList();
+            _error = null;
+            _isLoading = true;
+            _psalms = (await ApiClient.GetPsalmsAsync()).OrderBy(p => p.Id).ToList();
             ApplyFilter();
         }
         catch (Exception ex)
         {
-            error = ex.Message;
+            _error = ex.Message;
         }
         finally
         {
-            isLoading = false;
+            _isLoading = false;
         }
     }
 
     private void ApplyFilter()
     {
-        if (string.IsNullOrWhiteSpace(searchTerm))
+        if (string.IsNullOrWhiteSpace(_searchTerm))
         {
-            filtered = psalms;
+            _filtered = _psalms;
             return;
         }
 
-        var term = searchTerm.Trim();
-        filtered = psalms
+        var term = _searchTerm.Trim();
+        _filtered = _psalms
             .Where(p =>
                 p.Title.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                 (p.Type?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||

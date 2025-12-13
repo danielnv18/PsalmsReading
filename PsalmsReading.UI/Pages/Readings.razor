@@ -6,21 +6,21 @@
 <h1>Reading history</h1>
 <p class="text-muted">Capture the Sunday you read a psalm. Only the date is stored.</p>
 
-@if (loadError is not null)
+@if (_loadError is not null)
 {
-    <div class="alert alert-danger">@loadError</div>
+    <div class="alert alert-danger">@_loadError</div>
 }
 
 <div class="row g-4">
     <div class="col-lg-5">
         <div class="card shadow-sm">
             <div class="card-body">
-                <h5 class="card-title">@formTitle</h5>
+                <h5 class="card-title">@FormTitle</h5>
                 <div class="mb-3">
                     <label class="form-label">Psalm</label>
-                    <select class="form-select" @bind="selectedPsalmId">
+                    <select class="form-select" @bind="_selectedPsalmId">
                         <option value="0">Select a psalm</option>
-                        @foreach (var psalm in psalms)
+                        @foreach (var psalm in _psalms)
                         {
                             <option value="@psalm.Id">@psalm.Id - @psalm.Title</option>
                         }
@@ -28,24 +28,24 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Date read</label>
-                    <InputDate @bind-Value="dateRead" class="form-control" />
+                    <InputDate @bind-Value="_dateRead" class="form-control" />
                 </div>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-primary" @onclick="SaveReading" disabled="@(isSaving || selectedPsalmId <= 0)">
-                        @(isSaving ? "Saving..." : submitLabel)
+                    <button class="btn btn-primary" @onclick="SaveReading" disabled="@(_isSaving || _selectedPsalmId <= 0)">
+                        @(_isSaving ? "Saving..." : SubmitLabel)
                     </button>
-                    @if (editingId is not null)
+                    @if (_editingId is not null)
                     {
                         <button class="btn btn-outline-secondary" @onclick="CancelEdit" disabled="isSaving">Cancel</button>
                     }
                 </div>
-                @if (saveError is not null)
+                @if (_saveError is not null)
                 {
-                    <div class="alert alert-danger mt-3">@saveError</div>
+                    <div class="alert alert-danger mt-3">@_saveError</div>
                 }
-                @if (saveMessage is not null)
+                @if (_saveMessage is not null)
                 {
-                    <div class="alert alert-success mt-3">@saveMessage</div>
+                    <div class="alert alert-success mt-3">@_saveMessage</div>
                 }
             </div>
         </div>
@@ -56,18 +56,18 @@
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="card-title mb-0">History</h5>
                     <div class="d-flex gap-2">
-                        <InputDate @bind-Value="filterFrom" class="form-control" placeholder="From" />
-                        <InputDate @bind-Value="filterTo" class="form-control" placeholder="To" />
+                        <InputDate @bind-Value="_filterFrom" class="form-control" placeholder="From" />
+                        <InputDate @bind-Value="_filterTo" class="form-control" placeholder="To" />
                         <button class="btn btn-outline-secondary" @onclick="LoadReadings" disabled="isLoading">Apply</button>
                         <button class="btn btn-link text-decoration-none" @onclick="ResetFilters" disabled="isLoading">Reset</button>
                     </div>
                 </div>
 
-                @if (isLoading)
+                @if (_isLoading)
                 {
                     <p><em>Loading readings...</em></p>
                 }
-                else if (readings.Count == 0)
+                else if (_readings.Count == 0)
                 {
                     <p>No readings recorded.</p>
                 }
@@ -84,7 +84,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var record in readings.OrderByDescending(r => r.DateRead))
+                                @foreach (var record in _readings.OrderByDescending(r => r.DateRead))
                                 {
                                     <tr>
                                         <td>@record.DateRead.ToString("yyyy-MM-dd")</td>
@@ -108,20 +108,20 @@
 </div>
 
 @code {
-    private List<PsalmDto> psalms = new();
-    private List<ReadingRecordDto> readings = new();
-    private bool isLoading = true;
-    private bool isSaving;
-    private string? loadError;
-    private string? saveError;
-    private string? saveMessage;
-    private int selectedPsalmId;
-    private DateOnly dateRead = DateOnly.FromDateTime(DateTime.Today);
-    private DateOnly? filterFrom;
-    private DateOnly? filterTo;
-    private Guid? editingId;
-    private string formTitle => editingId is null ? "Add reading" : "Edit reading";
-    private string submitLabel => editingId is null ? "Save" : "Update";
+    private List<PsalmDto> _psalms = new();
+    private List<ReadingRecordDto> _readings = new();
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private string? _loadError;
+    private string? _saveError;
+    private string? _saveMessage;
+    private int _selectedPsalmId;
+    private DateOnly _dateRead = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly? _filterFrom;
+    private DateOnly? _filterTo;
+    private Guid? _editingId;
+    private string FormTitle => _editingId is null ? "Add reading" : "Edit reading";
+    private string SubmitLabel => _editingId is null ? "Save" : "Update";
 
     protected override async Task OnInitializedAsync()
     {
@@ -133,11 +133,11 @@
     {
         try
         {
-            psalms = (await ApiClient.GetPsalmsAsync()).OrderBy(p => p.Id).ToList();
+            _psalms = (await ApiClient.GetPsalmsAsync()).OrderBy(p => p.Id).ToList();
         }
         catch (Exception ex)
         {
-            loadError = ex.Message;
+            _loadError = ex.Message;
         }
     }
 
@@ -145,49 +145,49 @@
     {
         try
         {
-            loadError = null;
-            isLoading = true;
-            readings = (await ApiClient.GetReadingsAsync(filterFrom, filterTo)).ToList();
+            _loadError = null;
+            _isLoading = true;
+            _readings = (await ApiClient.GetReadingsAsync(_filterFrom, _filterTo)).ToList();
         }
         catch (Exception ex)
         {
-            loadError = ex.Message;
+            _loadError = ex.Message;
         }
         finally
         {
-            isLoading = false;
+            _isLoading = false;
         }
     }
 
     private async Task SaveReading()
     {
-        if (selectedPsalmId <= 0)
+        if (_selectedPsalmId <= 0)
         {
-            saveError = "Please select a psalm.";
+            _saveError = "Please select a psalm.";
             return;
         }
 
         try
         {
-            saveError = null;
-            saveMessage = null;
-            isSaving = true;
+            _saveError = null;
+            _saveMessage = null;
+            _isSaving = true;
 
-            if (await HasDuplicateReading(selectedPsalmId, dateRead, editingId))
+            if (await HasDuplicateReading(_selectedPsalmId, _dateRead, _editingId))
             {
-                saveError = "This psalm already has a reading on that date.";
+                _saveError = "This psalm already has a reading on that date.";
                 return;
             }
 
-            if (editingId is null)
+            if (_editingId is null)
             {
-                await ApiClient.CreateReadingAsync(new CreateReadingRequest(selectedPsalmId, dateRead));
-                saveMessage = "Reading saved.";
+                await ApiClient.CreateReadingAsync(new CreateReadingRequest(_selectedPsalmId, _dateRead));
+                _saveMessage = "Reading saved.";
             }
             else
             {
-                await ApiClient.UpdateReadingAsync(editingId.Value, new UpdateReadingRequest(selectedPsalmId, dateRead));
-                saveMessage = "Reading updated.";
+                await ApiClient.UpdateReadingAsync(_editingId.Value, new UpdateReadingRequest(_selectedPsalmId, _dateRead));
+                _saveMessage = "Reading updated.";
             }
 
             await LoadReadings();
@@ -195,30 +195,30 @@
         }
         catch (Exception ex)
         {
-            saveError = ex.Message;
+            _saveError = ex.Message;
         }
         finally
         {
-            isSaving = false;
+            _isSaving = false;
         }
     }
 
     private void StartEdit(ReadingRecordDto record)
     {
-        editingId = record.Id;
-        selectedPsalmId = record.PsalmId;
-        dateRead = record.DateRead;
-        saveMessage = null;
-        saveError = null;
+        _editingId = record.Id;
+        _selectedPsalmId = record.PsalmId;
+        _dateRead = record.DateRead;
+        _saveMessage = null;
+        _saveError = null;
     }
 
     private void CancelEdit()
     {
-        editingId = null;
-        selectedPsalmId = 0;
-        dateRead = DateOnly.FromDateTime(DateTime.Today);
-        saveMessage = null;
-        saveError = null;
+        _editingId = null;
+        _selectedPsalmId = 0;
+        _dateRead = DateOnly.FromDateTime(DateTime.Today);
+        _saveMessage = null;
+        _saveError = null;
     }
 
     private async Task DeleteReading(Guid id)
@@ -231,21 +231,21 @@
 
         try
         {
-            isSaving = true;
+            _isSaving = true;
             await ApiClient.DeleteReadingAsync(id);
             await LoadReadings();
-            if (editingId == id)
+            if (_editingId == id)
             {
                 CancelEdit();
             }
         }
         catch (Exception ex)
         {
-            saveError = ex.Message;
+            _saveError = ex.Message;
         }
         finally
         {
-            isSaving = false;
+            _isSaving = false;
         }
     }
 
@@ -265,13 +265,13 @@
 
     private void ResetFilters()
     {
-        filterFrom = null;
-        filterTo = null;
+        _filterFrom = null;
+        _filterTo = null;
         _ = LoadReadings();
     }
 
     private string GetPsalmTitle(int id) =>
-        psalms.FirstOrDefault(p => p.Id == id)?.Title ?? "(not loaded)";
+        _psalms.FirstOrDefault(p => p.Id == id)?.Title ?? "(not loaded)";
 
     private async Task<bool> HasDuplicateReading(int psalmId, DateOnly date, Guid? excludeId)
     {
