@@ -23,6 +23,22 @@ public class SchedulingTests
     }
 
     [Fact]
+    public async Task First_Sunday_Rule_Is_Labeled()
+    {
+        var psalms = new List<Psalm>
+        {
+            new(1, "General", 20, null, null, new List<string>()),
+            new(2, "Alabanza Psalm", 20, "alabanza", null, new List<string>())
+        };
+
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
+
+        var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 6, 1), 1);
+
+        Assert.Contains(plans, p => p.RuleApplied == "First Sunday of worship");
+    }
+
+    [Fact]
     public async Task Picks_HolyWeek_Psalms_With_Fewer_Reads()
     {
         var psalms = new List<Psalm>
@@ -43,6 +59,22 @@ public class SchedulingTests
     }
 
     [Fact]
+    public async Task HolyWeek_Rule_Is_Labeled()
+    {
+        var psalms = new List<Psalm>
+        {
+            new(113, "Palm", 20, null, null, new List<string>()),
+            new(114, "Easter", 20, null, null, new List<string>())
+        };
+
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
+        var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 4, 1), 1);
+
+        Assert.All(plans.Where(p => p.ScheduledDate.Month == 4 && p.ScheduledDate.Day is 13 or 20 or 27),
+            p => Assert.Equal("HolyWeek", p.RuleApplied));
+    }
+
+    [Fact]
     public async Task December_Falls_Back_To_Theme_When_Type_Missing()
     {
         var psalms = new List<Psalm>
@@ -55,6 +87,20 @@ public class SchedulingTests
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 12, 1), 1);
 
         Assert.Contains(plans, p => p.PsalmId == 11);
+    }
+
+    [Fact]
+    public async Task December_Rule_Is_Labeled()
+    {
+        var psalms = new List<Psalm>
+        {
+            new(11, "Mesiánico", 20, "mesiánico", new List<string> { "Mesiánico" }, new List<string>())
+        };
+
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
+        var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 12, 1), 1);
+
+        Assert.All(plans, p => Assert.Equal("Christmas season", p.RuleApplied));
     }
 
     [Fact]
@@ -73,6 +119,20 @@ public class SchedulingTests
     }
 
     [Fact]
+    public async Task First_Sunday_Of_Year_Rule_Is_Labeled()
+    {
+        var psalms = new List<Psalm>
+        {
+            new(2, "Año nuevo", 20, null, null, new List<string> { "Días festivos: año nuevo" })
+        };
+
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
+        var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2026, 1, 1), 1);
+
+        Assert.All(plans, p => Assert.Equal("First Sunday new year", p.RuleApplied));
+    }
+
+    [Fact]
     public async Task Last_Two_November_Sundays_Prefer_Thanksgiving_Theme()
     {
         var psalms = new List<Psalm>
@@ -86,6 +146,35 @@ public class SchedulingTests
 
         var thanksgivingSundays = plans.Where(p => p.RuleApplied == "Thanksgiving").Select(p => p.PsalmId).ToList();
         Assert.All(thanksgivingSundays, id => Assert.Equal(2, id));
+    }
+
+    [Fact]
+    public async Task Thanksgiving_Rule_Is_Labeled()
+    {
+        var psalms = new List<Psalm>
+        {
+            new(1, "General 1", 20, null, null, new List<string>()),
+            new(2, "General 2", 20, null, null, new List<string>()),
+            new(3, "Thanksgiving A", 20, null, null, new List<string> { "Días festivos: Agradecimiento" }),
+            new(4, "Thanksgiving B", 20, null, null, new List<string> { "Días festivos: Agradecimiento" })
+        };
+
+        var pastReads = new List<ReadingRecord>
+        {
+            new(Guid.NewGuid(), 3, new DateOnly(2026, 11, 21)),
+            new(Guid.NewGuid(), 4, new DateOnly(2026, 11, 28)),
+            new(Guid.NewGuid(), 4, new DateOnly(2026, 10, 21))
+        };
+
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(pastReads), new Random(42));
+        var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2027, 11, 1), 1);
+
+        var byDate = plans.Where(p => p.ScheduledDate.Month == 11).ToDictionary(p => p.ScheduledDate, p => p);
+
+        Assert.Equal("Thanksgiving", byDate[new DateOnly(2027, 11, 21)].RuleApplied);
+        Assert.Equal("Thanksgiving", byDate[new DateOnly(2027, 11, 28)].RuleApplied);
+        Assert.Equal("General", byDate[new DateOnly(2027, 11, 7)].RuleApplied);
+        Assert.Equal("General", byDate[new DateOnly(2027, 11, 14)].RuleApplied);
     }
 
     [Fact]
@@ -123,7 +212,27 @@ public class SchedulingTests
         var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(pastReads), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 5, 1), 1);
 
-        Assert.Contains(plans, p => p.PsalmId == 1);
+        Assert.Contains(plans, p => p.PsalmId == 1 && p.RuleApplied == "General");
+    }
+
+    [Fact]
+    public async Task General_Rule_Is_Labeled_For_NonSpecial_Sunday()
+    {
+        var psalms = new List<Psalm>
+        {
+            new(1, "General Low Reads", 20, null, null, new List<string>()),
+            new(2, "General High Reads", 20, null, null, new List<string>())
+        };
+
+        var pastReads = new List<ReadingRecord>
+        {
+            new(Guid.NewGuid(), 2, new DateOnly(2024, 3, 10))
+        };
+
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(pastReads), new Random(42));
+        var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 3, 12), 1);
+
+        Assert.All(plans, p => Assert.Equal("General", p.RuleApplied));
     }
 
     [Theory]

@@ -13,6 +13,15 @@ public sealed class ReadingScheduler(
     private static readonly HashSet<int> HolyWeekPreferredIds = [113, 114, 115, 116, 117, 118];
 
     private readonly Random _random = random ?? new Random();
+    private readonly IReadOnlyList<IReadingRule> _rules =
+    [
+        new FirstSundayOfYearRule(),
+        new ThanksgivingRule(),
+        new HolyWeekRule(HolyWeekPreferredIds),
+        new DecemberRule(),
+        new FirstSundayPraiseRule(),
+        new GeneralRule()
+    ];
 
     public async Task<IReadOnlyList<PlannedReading>> GenerateScheduleAsync(DateOnly startDate, int months, CancellationToken cancellationToken = default)
     {
@@ -21,11 +30,11 @@ public sealed class ReadingScheduler(
             throw new ArgumentOutOfRangeException(nameof(months), "Months must be positive.");
         }
 
-        var psalms = (await psalmRepository.GetAllAsync(cancellationToken))
+        IReadOnlyDictionary<int, Psalm> psalms = (await psalmRepository.GetAllAsync(cancellationToken))
             .Where(IsAllowedPsalm)
             .ToDictionary(p => p.Id);
 
-        var readCounts = (await readingRepository.GetAllAsync(cancellationToken))
+        IReadOnlyDictionary<int, int> readCounts = (await readingRepository.GetAllAsync(cancellationToken))
             .GroupBy(r => r.PsalmId)
             .ToDictionary(g => g.Key, g => g.Count());
 
@@ -45,46 +54,18 @@ public sealed class ReadingScheduler(
                 break;
             }
 
-            Psalm? chosen;
-            string ruleApplied;
+            var context = new ScheduleContext(
+                sunday,
+                available,
+                readCounts,
+                holyWeekSundays.Contains(sunday),
+                thanksgivingSundays.Contains(sunday),
+                sunday.Month == 12,
+                IsFirstSundayOfMonth(sunday),
+                IsFirstSundayOfYear(sunday),
+                _random);
 
-            if (IsFirstSundayOfYear(sunday))
-            {
-                chosen = SelectByTheme(available, readCounts, "Días festivos: año nuevo");
-                ruleApplied = "First Sunday new year";
-            }
-            else if (thanksgivingSundays.Contains(sunday))
-            {
-                chosen = SelectByTheme(available, readCounts, "Días festivos: Agradecimiento");
-                ruleApplied = "Thanksgiving";
-            }
-            else if (holyWeekSundays.Contains(sunday))
-            {
-                chosen = SelectBestByTier(available.Where(p => HolyWeekPreferredIds.Contains(p.Id)), readCounts);
-                ruleApplied = "HolyWeek";
-            }
-            else if (sunday.Month == 12)
-            {
-                chosen = SelectByTypeThemeOrEpigraph(available, readCounts, "mesiánico");
-                ruleApplied = "Christmas season";
-            }
-            else if (IsFirstSundayOfMonth(sunday))
-            {
-                chosen = SelectByTypeThemeOrEpigraph(available, readCounts, "alabanza");
-                ruleApplied = "First Sunday of worship";
-            }
-            else
-            {
-                chosen = SelectBestByTier(available, readCounts);
-                ruleApplied = "General";
-            }
-
-            // Fallbacks if a special rule yielded no candidate.
-            if (chosen is null)
-            {
-                chosen = SelectBestByTier(available, readCounts);
-                ruleApplied = "General";
-            }
+            (Psalm? chosen, var appliedRule) = ApplyRules(context);
 
             if (chosen is null)
             {
@@ -92,7 +73,7 @@ public sealed class ReadingScheduler(
             }
 
             usedPsalmIds.Add(chosen.Id);
-            planned.Add(new PlannedReading(Guid.NewGuid(), chosen.Id, sunday, ruleApplied));
+            planned.Add(new PlannedReading(Guid.NewGuid(), chosen.Id, sunday, appliedRule));
         }
 
         return planned;
@@ -100,6 +81,25 @@ public sealed class ReadingScheduler(
 
     private static bool IsAllowedPsalm(Psalm psalm) =>
         psalm.IsShortReadingCandidate(30) && !ExcludedPsalmIds.Contains(psalm.Id);
+
+    private (Psalm? Psalm, string Rule) ApplyRules(ScheduleContext context)
+    {
+        foreach (IReadingRule rule in _rules)
+        {
+            if (!rule.CanApply(context))
+            {
+                continue;
+            }
+
+            Psalm? selected = rule.Select(context);
+            if (selected is not null)
+            {
+                return (selected, rule.Name);
+            }
+        }
+
+        return (null, string.Empty);
+    }
 
     private static IEnumerable<DateOnly> EnumerateSundays(DateOnly start, DateOnly end)
     {
@@ -184,34 +184,31 @@ public sealed class ReadingScheduler(
         return new DateOnly(year, month, day);
     }
 
-    private Psalm? SelectByTypeThemeOrEpigraph(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value)
+    private static Psalm? SelectByTheme(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value, Random random) =>
+        SelectBestByTier(candidates.Where(p => p.Themes.Any(t => MatchesNormalized(t, value))), readCounts, random);
+
+    private static Psalm? SelectByTypeThemeOrEpigraph(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value, Random random)
     {
         IEnumerable<Psalm> psalms = candidates as Psalm[] ?? candidates.ToArray();
         IEnumerable<Psalm> byType = psalms.Where(p => MatchesNormalized(p.Type, value));
-        Psalm? selected = SelectBestByTier(byType, readCounts);
+        Psalm? selected = SelectBestByTier(byType, readCounts, random);
         if (selected is not null)
         {
             return selected;
         }
 
         IEnumerable<Psalm> byTheme = psalms.Where(p => p.Themes.Any(t => MatchesNormalized(t, value)));
-        selected = SelectBestByTier(byTheme, readCounts);
+        selected = SelectBestByTier(byTheme, readCounts, random);
         if (selected is not null)
         {
             return selected;
         }
 
         IEnumerable<Psalm> byEpigraph = psalms.Where(p => p.Epigraphs.Any(e => MatchesNormalized(e, value)));
-        return SelectBestByTier(byEpigraph, readCounts);
+        return SelectBestByTier(byEpigraph, readCounts, random);
     }
 
-    private Psalm? SelectByTheme(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value)
-    {
-        IEnumerable<Psalm> byTheme = candidates.Where(p => p.Themes.Any(t => MatchesNormalized(t, value)));
-        return SelectBestByTier(byTheme, readCounts);
-    }
-
-    private Psalm? SelectBestByTier(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts)
+    private static Psalm? SelectBestByTier(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, Random random)
     {
         var candidateList = candidates.ToList();
         if (candidateList.Count == 0)
@@ -219,7 +216,6 @@ public sealed class ReadingScheduler(
             return null;
         }
 
-        // Group by read count, then iterate through tiers in order (least reads first)
         var groupedByReadCount = candidateList
             .GroupBy(p => readCounts.GetValueOrDefault(p.Id))
             .OrderBy(g => g.Key)
@@ -227,14 +223,12 @@ public sealed class ReadingScheduler(
 
         foreach (List<Psalm> tierList in groupedByReadCount.Select(tier => tier.ToList()).Where(tierList => tierList.Count != 0))
         {
-            // If 1 or 2 psalms in tier, return the first
             if (tierList.Count <= 2)
             {
                 return tierList[0];
             }
 
-            // If >2 psalms in tier, return a random one
-            var randomIndex = _random.Next(tierList.Count);
+            var randomIndex = random.Next(tierList.Count);
             return tierList[randomIndex];
         }
 
@@ -256,5 +250,83 @@ public sealed class ReadingScheduler(
         var normalized = value.Normalize(System.Text.NormalizationForm.FormD);
         IEnumerable<char> filtered = normalized.Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark);
         return new string(filtered.ToArray()).ToLowerInvariant().Trim();
+    }
+
+    private sealed record ScheduleContext(
+        DateOnly Sunday,
+        IReadOnlyList<Psalm> AvailablePsalms,
+        IReadOnlyDictionary<int, int> ReadCounts,
+        bool IsHolyWeek,
+        bool IsThanksgivingSunday,
+        bool IsDecember,
+        bool IsFirstSundayOfMonth,
+        bool IsFirstSundayOfYear,
+        Random Random);
+
+    private interface IReadingRule
+    {
+        string Name { get; }
+        bool CanApply(ScheduleContext context);
+        Psalm? Select(ScheduleContext context);
+    }
+
+    private sealed class FirstSundayOfYearRule : IReadingRule
+    {
+        public string Name => "First Sunday new year";
+
+        public bool CanApply(ScheduleContext context) => context.IsFirstSundayOfYear;
+
+        public Psalm? Select(ScheduleContext context) =>
+            SelectByTheme(context.AvailablePsalms, context.ReadCounts, "Días festivos: año nuevo", context.Random);
+    }
+
+    private sealed class ThanksgivingRule : IReadingRule
+    {
+        public string Name => "Thanksgiving";
+
+        public bool CanApply(ScheduleContext context) => context.IsThanksgivingSunday;
+
+        public Psalm? Select(ScheduleContext context) =>
+            SelectByTheme(context.AvailablePsalms, context.ReadCounts, "Días festivos: Agradecimiento", context.Random);
+    }
+
+    private sealed class HolyWeekRule(HashSet<int> preferredIds) : IReadingRule
+    {
+        public string Name => "HolyWeek";
+
+        public bool CanApply(ScheduleContext context) => context.IsHolyWeek;
+
+        public Psalm? Select(ScheduleContext context) =>
+            SelectBestByTier(context.AvailablePsalms.Where(p => preferredIds.Contains(p.Id)), context.ReadCounts, context.Random);
+    }
+
+    private sealed class DecemberRule : IReadingRule
+    {
+        public string Name => "Christmas season";
+
+        public bool CanApply(ScheduleContext context) => context.IsDecember;
+
+        public Psalm? Select(ScheduleContext context) =>
+            SelectByTypeThemeOrEpigraph(context.AvailablePsalms, context.ReadCounts, "mesiánico", context.Random);
+    }
+
+    private sealed class FirstSundayPraiseRule : IReadingRule
+    {
+        public string Name => "First Sunday of worship";
+
+        public bool CanApply(ScheduleContext context) => context.IsFirstSundayOfMonth;
+
+        public Psalm? Select(ScheduleContext context) =>
+            SelectByTypeThemeOrEpigraph(context.AvailablePsalms, context.ReadCounts, "alabanza", context.Random);
+    }
+
+    private sealed class GeneralRule : IReadingRule
+    {
+        public string Name => "General";
+
+        public bool CanApply(ScheduleContext context) => true;
+
+        public Psalm? Select(ScheduleContext context) =>
+            SelectBestByTier(context.AvailablePsalms, context.ReadCounts, context.Random);
     }
 }
