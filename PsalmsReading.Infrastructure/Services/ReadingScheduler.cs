@@ -47,7 +47,12 @@ public sealed class ReadingScheduler(
             Psalm? chosen;
             string ruleApplied;
 
-            if (holyWeekSundays.Contains(sunday))
+            if (IsFirstSundayOfYear(sunday))
+            {
+                chosen = SelectByTheme(available, readCounts, "Días festivos: año nuevo");
+                ruleApplied = "First Sunday new year";
+            }
+            else if (holyWeekSundays.Contains(sunday))
             {
                 chosen = SelectBestByTier(available.Where(p => HolyWeekPreferredIds.Contains(p.Id)), readCounts);
                 ruleApplied = "HolyWeek";
@@ -107,6 +112,9 @@ public sealed class ReadingScheduler(
     private static bool IsFirstSundayOfMonth(DateOnly date) =>
         date.Day <= 7;
 
+    private static bool IsFirstSundayOfYear(DateOnly date) =>
+        date.Month == 1 && IsFirstSundayOfMonth(date);
+
     private static HashSet<DateOnly> GetHolyWeekSundays(IEnumerable<DateOnly> sundays)
     {
         var set = new HashSet<DateOnly>();
@@ -161,6 +169,12 @@ public sealed class ReadingScheduler(
         }
 
         IEnumerable<Psalm> byTheme = psalms.Where(p => p.HasTheme(value));
+        return SelectBestByTier(byTheme, readCounts);
+    }
+
+    private Psalm? SelectByTheme(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value)
+    {
+        var byTheme = candidates.Where(p => p.HasTheme(value));
         return SelectBestByTier(byTheme, readCounts);
     }
 

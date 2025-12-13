@@ -58,6 +58,21 @@ public class SchedulingTests
     }
 
     [Fact]
+    public async Task First_Sunday_Of_Year_Prefers_NewYear_Theme()
+    {
+        var psalms = new List<Psalm>
+        {
+            new(1, "General", 20, null, null, new List<string>()),
+            new(2, "Año nuevo", 20, null, null, new List<string> { "Días festivos: año nuevo" })
+        };
+
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
+        var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 1, 1), 1);
+
+        Assert.Contains(plans, p => p.PsalmId == 2);
+    }
+
+    [Fact]
     public async Task Excludes_Long_And_Banned_Psalms()
     {
         var psalms = new List<Psalm>
