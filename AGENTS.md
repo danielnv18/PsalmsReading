@@ -19,6 +19,11 @@
 - Formatting: follow `.editorconfig` (spaces, size 4 for code; size 2 for JSON/YAML/XML). Keep files ASCII/UTF-8-BOM.
 - Project naming: `PsalmsReading.*` per layer; avoid introducing new prefixes.
 - Avoid hardcoding paths; prefer configuration and DI.
+- Use async/await for I/O-bound operations; avoid blocking calls.
+- Prefer dependency injection for services and repositories; avoid static state.
+- Follow SOLID principles; separate concerns and keep classes focused.
+- Use meaningful names for variables, methods, classes; avoid abbreviations unless widely recognized.
+- Always use explicit types instead of `var` when possible, except for LINQ queries and anonymous types.
 
 ## Testing Guidelines
 - Framework: xUnit with FluentAssertions (planned). Place tests in `PsalmsReading.Tests`.

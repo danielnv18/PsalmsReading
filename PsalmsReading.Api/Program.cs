@@ -168,7 +168,7 @@ api.MapPost("/schedule", async (ScheduleRequest request, IReadingScheduler sched
 {
     if (!IsValidMonths(request.Months))
     {
-        return Results.BadRequest("Months must be one of 1, 2, 3, 6.");
+        return Results.BadRequest("Months must be one of 1, 2, 3, 6, 12.");
     }
 
     DateOnly start = request.StartDate;
@@ -186,7 +186,7 @@ api.MapPost("/schedule/preview", async (ScheduleRequest request, IReadingSchedul
 {
     if (!IsValidMonths(request.Months))
     {
-        return Results.BadRequest("Months must be one of 1, 2, 3, 6.");
+        return Results.BadRequest("Months must be one of 1, 2, 3, 6, 12.");
     }
 
     IReadOnlyList<PlannedReading> planned = await scheduler.GenerateScheduleAsync(request.StartDate, request.Months, cancellationToken);
@@ -197,7 +197,7 @@ api.MapPost("/schedule/ics", async (ScheduleRequest request, IReadingScheduler s
 {
     if (!IsValidMonths(request.Months))
     {
-        return Results.BadRequest("Months must be one of 1, 2, 3, 6.");
+        return Results.BadRequest("Months must be one of 1, 2, 3, 6, 12.");
     }
 
     DateOnly start = request.StartDate;
@@ -217,7 +217,7 @@ api.MapPost("/schedule/ics", async (ScheduleRequest request, IReadingScheduler s
     return Results.Text(ics, "text/calendar");
 });
 
-static bool IsValidMonths(int months) => months is 1 or 2 or 3 or 6;
+static bool IsValidMonths(int months) => months is 1 or 2 or 3 or 6 or 12;
 
 static PsalmDto MapPsalm(PsalmsReading.Domain.Entities.Psalm psalm) =>
     new(psalm.Id, psalm.Title, psalm.TotalVerses, psalm.Type, psalm.Epigraphs, psalm.Themes);

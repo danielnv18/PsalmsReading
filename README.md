@@ -15,7 +15,7 @@
 
 ## Scheduling logic (where and what)
 - Implementation: `PsalmsReading.Infrastructure/Services/ReadingScheduler.cs`.
-- Rules: only psalms with `TotalVerses <= 30`; exclude 35, 55, 59, 69, 79, 109, 137; prioritize least-read; first Sunday of the year prefers theme `Días festivos: año nuevo`; Holy Week Sundays pick among 113–118 (fewest reads); December prefers mesiánico (type, then theme, then epigraphs); first Sunday of each month prefers alabanza (type then theme); otherwise least-read. No duplicates per generated schedule. Easter is inferred per year. ICS export is in `PsalmsReading.Infrastructure/Services/CalendarExporter.cs` (uses the provided body template and Bible.com link).
+- Rules: only psalms with `TotalVerses <= 30`; exclude 35, 55, 59, 69, 79, 109, 137; prioritize least-read; first Sunday of the year prefers theme `Días festivos: año nuevo`; last two Sundays of November prefer theme `Días festivos: Agradecimiento`; Holy Week Sundays pick among 113–118 (fewest reads); December prefers mesiánico (type, then theme, then epigraphs); first Sunday of each month prefers alabanza (type then theme); otherwise least-read. No duplicates per generated schedule. Easter is inferred per year. ICS export is in `PsalmsReading.Infrastructure/Services/CalendarExporter.cs` (uses the provided body template and Bible.com link).
 
 ## Project structure (solution `PsalmsReading.slnx`)
 - `PsalmsReading.Domain`: entities (Psalm, ReadingRecord, PlannedReading) with English identifiers.

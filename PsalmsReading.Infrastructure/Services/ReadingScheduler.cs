@@ -32,6 +32,7 @@ public sealed class ReadingScheduler(
         DateOnly endDate = startDate.AddMonths(months);
         var sundays = EnumerateSundays(startDate, endDate).ToList();
         HashSet<DateOnly> holyWeekSundays = GetHolyWeekSundays(sundays);
+        HashSet<DateOnly> thanksgivingSundays = GetLastTwoSundaysOfNovember(sundays);
 
         var planned = new List<PlannedReading>();
         var usedPsalmIds = new HashSet<int>();
@@ -52,6 +53,11 @@ public sealed class ReadingScheduler(
                 chosen = SelectByTheme(available, readCounts, "Días festivos: año nuevo");
                 ruleApplied = "First Sunday new year";
             }
+            else if (thanksgivingSundays.Contains(sunday))
+            {
+                chosen = SelectByTheme(available, readCounts, "Días festivos: Agradecimiento");
+                ruleApplied = "Thanksgiving";
+            }
             else if (holyWeekSundays.Contains(sunday))
             {
                 chosen = SelectBestByTier(available.Where(p => HolyWeekPreferredIds.Contains(p.Id)), readCounts);
@@ -60,12 +66,12 @@ public sealed class ReadingScheduler(
             else if (sunday.Month == 12)
             {
                 chosen = SelectByTypeThemeOrEpigraph(available, readCounts, "mesiánico");
-                ruleApplied = "December mesiánico";
+                ruleApplied = "Christmas season";
             }
             else if (IsFirstSundayOfMonth(sunday))
             {
                 chosen = SelectByTypeThemeOrEpigraph(available, readCounts, "alabanza");
-                ruleApplied = "First Sunday alabanza";
+                ruleApplied = "First Sunday of worship";
             }
             else
             {
@@ -138,6 +144,26 @@ public sealed class ReadingScheduler(
         return set;
     }
 
+    private static HashSet<DateOnly> GetLastTwoSundaysOfNovember(IEnumerable<DateOnly> sundays)
+    {
+        var set = new HashSet<DateOnly>();
+        IEnumerable<IGrouping<int, DateOnly>> byYear = sundays.Where(s => s.Month == 11).GroupBy(s => s.Year);
+
+        foreach (IGrouping<int, DateOnly> group in byYear)
+        {
+            var sorted = group.OrderBy(s => s.Day).ToList();
+            if (sorted.Count < 2)
+            {
+                continue;
+            }
+
+            set.Add(sorted[^1]);
+            set.Add(sorted[^2]);
+        }
+
+        return set;
+    }
+
     private static DateOnly CalculateEasterSunday(int year)
     {
         // Meeus/Jones/Butcher algorithm
@@ -181,7 +207,7 @@ public sealed class ReadingScheduler(
 
     private Psalm? SelectByTheme(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value)
     {
-        var byTheme = candidates.Where(p => p.Themes.Any(t => MatchesNormalized(t, value)));
+        IEnumerable<Psalm> byTheme = candidates.Where(p => p.Themes.Any(t => MatchesNormalized(t, value)));
         return SelectBestByTier(byTheme, readCounts);
     }
 
@@ -228,7 +254,7 @@ public sealed class ReadingScheduler(
     private static string Normalize(string value)
     {
         var normalized = value.Normalize(System.Text.NormalizationForm.FormD);
-        var filtered = normalized.Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark);
+        IEnumerable<char> filtered = normalized.Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark);
         return new string(filtered.ToArray()).ToLowerInvariant().Trim();
     }
 }

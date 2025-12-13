@@ -73,6 +73,22 @@ public class SchedulingTests
     }
 
     [Fact]
+    public async Task Last_Two_November_Sundays_Prefer_Thanksgiving_Theme()
+    {
+        var psalms = new List<Psalm>
+        {
+            new(1, "General", 20, null, null, new List<string>()),
+            new(2, "Thanksgiving", 20, null, null, new List<string> { "Días festivos: Agradecimiento" })
+        };
+
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
+        var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 11, 1), 1);
+
+        var thanksgivingSundays = plans.Where(p => p.RuleApplied == "Thanksgiving").Select(p => p.PsalmId).ToList();
+        Assert.All(thanksgivingSundays, id => Assert.Equal(2, id));
+    }
+
+    [Fact]
     public async Task Excludes_Long_And_Banned_Psalms()
     {
         var psalms = new List<Psalm>
