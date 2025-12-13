@@ -20,7 +20,7 @@ public sealed class ApiClient
     public async Task<IReadOnlyList<PsalmDto>> GetPsalmsAsync(CancellationToken cancellationToken = default)
     {
         var result = await _httpClient.GetFromJsonAsync<List<PsalmDto>>("psalms", _jsonOptions, cancellationToken);
-        return result ?? new List<PsalmDto>();
+        return result ?? [];
     }
 
     public async Task<IReadOnlyList<ReadingRecordDto>> GetReadingsAsync(DateOnly? from = default, DateOnly? to = default, CancellationToken cancellationToken = default)
@@ -32,7 +32,7 @@ public sealed class ApiClient
         }
 
         var result = await _httpClient.GetFromJsonAsync<List<ReadingRecordDto>>(uri, _jsonOptions, cancellationToken);
-        return result ?? new List<ReadingRecordDto>();
+        return result ?? [];
     }
 
     public async Task CreateReadingAsync(CreateReadingRequest request, CancellationToken cancellationToken = default)
@@ -59,7 +59,7 @@ public sealed class ApiClient
         await EnsureSuccess(response);
 
         var result = await response.Content.ReadFromJsonAsync<List<PlannedReadingDto>>(_jsonOptions, cancellationToken);
-        return result ?? new List<PlannedReadingDto>();
+        return result ?? [];
     }
 
     public async Task<IReadOnlyList<PlannedReadingDto>> PreviewScheduleAsync(ScheduleRequest request, CancellationToken cancellationToken = default)
@@ -68,7 +68,7 @@ public sealed class ApiClient
         await EnsureSuccess(response);
 
         var result = await response.Content.ReadFromJsonAsync<List<PlannedReadingDto>>(_jsonOptions, cancellationToken);
-        return result ?? new List<PlannedReadingDto>();
+        return result ?? [];
     }
 
     public async Task<string> GenerateScheduleIcsAsync(ScheduleRequest request, CancellationToken cancellationToken = default)

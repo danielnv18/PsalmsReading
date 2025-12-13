@@ -96,13 +96,13 @@
 </div>
 
 @code {
-    private readonly int[] _allowedMonths = new[] { 1, 2, 3, 6, 12 };
-    private List<PsalmDto> _psalms = new();
-    private List<PlannedReadingDto> _plans = new();
+    private readonly int[] _allowedMonths = [1, 2, 3, 6, 12];
+    private List<PsalmDto> _psalms = [];
+    private List<PlannedReadingDto> _plans = [];
     private DateOnly _startDate = DateOnly.FromDateTime(DateTime.Today);
     private int _months = 1;
     private string? _error;
-    private bool _isWorking = false;
+    private bool _isWorking;
     private string? _icsDownloadUrl;
     private string _icsFileName = "psalm-schedule.ics";
 
