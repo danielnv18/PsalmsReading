@@ -59,12 +59,12 @@ public sealed class ReadingScheduler(
             }
             else if (sunday.Month == 12)
             {
-                chosen = SelectByTypeOrTheme(available, readCounts, "mesiánico");
+                chosen = SelectByTypeThemeOrEpigraph(available, readCounts, "mesiánico");
                 ruleApplied = "December mesiánico";
             }
             else if (IsFirstSundayOfMonth(sunday))
             {
-                chosen = SelectByTypeOrTheme(available, readCounts, "alabanza");
+                chosen = SelectByTypeThemeOrEpigraph(available, readCounts, "alabanza");
                 ruleApplied = "First Sunday alabanza";
             }
             else
@@ -158,23 +158,30 @@ public sealed class ReadingScheduler(
         return new DateOnly(year, month, day);
     }
 
-    private Psalm? SelectByTypeOrTheme(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value)
+    private Psalm? SelectByTypeThemeOrEpigraph(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value)
     {
         IEnumerable<Psalm> psalms = candidates as Psalm[] ?? candidates.ToArray();
-        IEnumerable<Psalm> byType = psalms.Where(p => p.HasType(value));
+        IEnumerable<Psalm> byType = psalms.Where(p => MatchesNormalized(p.Type, value));
         Psalm? selected = SelectBestByTier(byType, readCounts);
         if (selected is not null)
         {
             return selected;
         }
 
-        IEnumerable<Psalm> byTheme = psalms.Where(p => p.HasTheme(value));
-        return SelectBestByTier(byTheme, readCounts);
+        IEnumerable<Psalm> byTheme = psalms.Where(p => p.Themes.Any(t => MatchesNormalized(t, value)));
+        selected = SelectBestByTier(byTheme, readCounts);
+        if (selected is not null)
+        {
+            return selected;
+        }
+
+        IEnumerable<Psalm> byEpigraph = psalms.Where(p => p.Epigraphs.Any(e => MatchesNormalized(e, value)));
+        return SelectBestByTier(byEpigraph, readCounts);
     }
 
     private Psalm? SelectByTheme(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value)
     {
-        var byTheme = candidates.Where(p => p.HasTheme(value));
+        var byTheme = candidates.Where(p => p.Themes.Any(t => MatchesNormalized(t, value)));
         return SelectBestByTier(byTheme, readCounts);
     }
 
@@ -206,5 +213,22 @@ public sealed class ReadingScheduler(
         }
 
         return null;
+    }
+
+    private static bool MatchesNormalized(string? source, string target)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return false;
+        }
+
+        return string.Equals(Normalize(source), Normalize(target), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Normalize(string value)
+    {
+        var normalized = value.Normalize(System.Text.NormalizationForm.FormD);
+        var filtered = normalized.Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark);
+        return new string(filtered.ToArray()).ToLowerInvariant().Trim();
     }
 }

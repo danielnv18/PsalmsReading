@@ -48,7 +48,7 @@ public class SchedulingTests
         var psalms = new List<Psalm>
         {
             new(10, "General", 20, null, null, new List<string>()),
-            new(11, "Mesiánico", 20, null, null, new List<string> { "mesiánico" })
+            new(11, "Mesiánico", 20, null, new List<string> { "Mesiánico" }, new List<string>())
         };
 
         var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
