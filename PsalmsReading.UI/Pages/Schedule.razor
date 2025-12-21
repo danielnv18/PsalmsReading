@@ -20,7 +20,7 @@
             <div class="col-md-3">
                 <label class="form-label">Months</label>
                 <select class="form-select" @bind="_months">
-                    @foreach (var option in _allowedMonths)
+                    @foreach (int option in _allowedMonths)
                     {
                         <option value="@option">@option</option>
                     }
@@ -54,6 +54,15 @@
 
 <div class="card shadow-sm">
     <div class="card-body">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <span class="type-badge type-lamento">Lamento</span>
+            <span class="type-badge type-alabanza">Alabanza</span>
+            <span class="type-badge type-himno">Himno</span>
+            <span class="type-badge type-realeza">Realeza</span>
+            <span class="type-badge type-sabiduria">Sabiduria</span>
+            <span class="type-badge type-agradecimiento">Agradecimiento</span>
+            <span class="type-badge type-confianza">Confianza</span>
+        </div>
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="card-title mb-0">Planned readings</h5>
             <span class="text-muted">@_plans.Count plan(s)</span>
@@ -69,23 +78,52 @@
         else
         {
             <div class="table-responsive">
-                <table class="table table-striped align-middle">
-                    <thead>
+                <table class="table table-bordered align-middle">
+                    <thead class="table-light">
                         <tr>
-                            <th style="width: 20%">Date</th>
-                            <th style="width: 15%">Psalm</th>
-                            <th>Title</th>
-                            <th style="width: 30%">Rule applied</th>
+                            <th style="width: 18%">Mes</th>
+                            <th style="width: 16%">1er domingo</th>
+                            <th style="width: 16%">2do domingo</th>
+                            <th style="width: 16%">3er domingo</th>
+                            <th style="width: 16%">4to domingo</th>
+                            <th style="width: 16%">5to domingo</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var plan in _plans.OrderBy(p => p.ScheduledDate))
+                        @foreach (DateOnly month in GetScheduleMonths())
                         {
+                            IReadOnlyList<DateOnly?> slots = GetSundaySlots(month.Year, month.Month);
                             <tr>
-                                <td>@plan.ScheduledDate.ToString("yyyy-MM-dd")</td>
-                                <td>@plan.PsalmId</td>
-                                <td>@GetPsalmTitle(plan.PsalmId)</td>
-                                <td>@plan.RuleApplied</td>
+                                <th scope="row">@GetMonthLabel(month)</th>
+                                @for (int index = 0; index < 5; index++)
+                                {
+                                    DateOnly? slotDate = slots[index];
+                                    if (slotDate is null || !IsInScheduleRange(slotDate.Value))
+                                    {
+                                        <td></td>
+                                    }
+                                    else
+                                    {
+                                        PlannedReadingDto? plan = GetPlanForDate(slotDate.Value);
+                                        string? type = plan is null ? null : GetPsalmType(plan.PsalmId);
+                                        <td>
+                                            <div class="d-flex flex-column gap-1 @GetCellClass(type)" @attributes="GetTooltipAttributes(type)">
+                                            @if (plan is not null)
+                                            {
+                                                <div class="d-flex flex-column gap-1">
+                                                    <div class="fw-semibold">Salmo @plan.PsalmId - @GetPsalmTitle(plan.PsalmId)</div>
+                                                    <div class="text-muted">Día @slotDate.Value.Day</div>
+                                                    <div class="text-muted">@plan.RuleApplied</div>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="text-muted">Día @slotDate.Value.Day</div>
+                                            }
+                                            </div>
+                                        </td>
+                                    }
+                                }
                             </tr>
                         }
                     </tbody>
@@ -99,6 +137,7 @@
     private readonly int[] _allowedMonths = [1, 2, 3, 6, 12];
     private List<PsalmDto> _psalms = [];
     private List<PlannedReadingDto> _plans = [];
+    private Dictionary<DateOnly, PlannedReadingDto> _plansByDate = [];
     private DateOnly _startDate = DateOnly.FromDateTime(DateTime.Today);
     private int _months = 1;
     private string? _error;
@@ -146,17 +185,18 @@
             _icsDownloadUrl = null;
             _isWorking = true;
 
-            var request = new ScheduleRequest(_startDate, _months);
+            ScheduleRequest request = new(_startDate, _months);
             _plans = save
             ? (await ApiClient.GenerateScheduleAsync(request)).ToList()
             : (await ApiClient.PreviewScheduleAsync(request)).ToList();
+            _plansByDate = BuildPlansByDate(_plans);
 
             if (includeIcs)
             {
-                var ics = await ApiClient.GenerateScheduleIcsAsync(request);
+                string ics = await ApiClient.GenerateScheduleIcsAsync(request);
                 if (!string.IsNullOrWhiteSpace(ics))
                 {
-                    var content = Uri.EscapeDataString(ics);
+                    string content = Uri.EscapeDataString(ics);
                     _icsDownloadUrl = $"data:text/calendar;charset=utf-8,{content}";
                     _icsFileName = $"psalm-schedule-{_startDate:yyyyMMdd}-m{_months}.ics";
                 }
@@ -174,4 +214,116 @@
 
     private string GetPsalmTitle(int id) =>
     _psalms.FirstOrDefault(p => p.Id == id)?.Title ?? "(not loaded)";
+
+    private string? GetPsalmType(int id) =>
+        _psalms.FirstOrDefault(p => p.Id == id)?.Type;
+
+    private static string GetTypeClass(string type)
+    {
+        string key = type.Trim().ToLowerInvariant();
+        return key switch
+        {
+            "lamento" => "type-lamento",
+            "alabanza" => "type-alabanza",
+            "himno" => "type-himno",
+            "realeza" => "type-realeza",
+            "sabiduria" => "type-sabiduria",
+            "sabiduría" => "type-sabiduria",
+            "agradecimiento" => "type-agradecimiento",
+            "confianza" => "type-confianza",
+            _ => "type-unknown"
+        };
+    }
+
+    private static string GetCellClass(string? type)
+    {
+        if (string.IsNullOrWhiteSpace(type))
+        {
+            return string.Empty;
+        }
+
+        return $"type-cell {GetTypeClass(type)}";
+    }
+
+    private IReadOnlyDictionary<string, object>? GetTooltipAttributes(string? type)
+    {
+        if (string.IsNullOrWhiteSpace(type))
+        {
+            return null;
+        }
+
+        return new Dictionary<string, object>
+        {
+            ["data-bs-toggle"] = "tooltip",
+            ["data-bs-placement"] = "top",
+            ["title"] = type
+        };
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await JsRuntime.InvokeVoidAsync("psalmsReading.initTooltips");
+    }
+
+    private PlannedReadingDto? GetPlanForDate(DateOnly date) =>
+        _plansByDate.GetValueOrDefault(date);
+
+    private static Dictionary<DateOnly, PlannedReadingDto> BuildPlansByDate(IEnumerable<PlannedReadingDto> plans)
+    {
+        Dictionary<DateOnly, PlannedReadingDto> results = new();
+        foreach (PlannedReadingDto plan in plans)
+        {
+            results.TryAdd(plan.ScheduledDate, plan);
+        }
+
+        return results;
+    }
+
+    private IEnumerable<DateOnly> GetScheduleMonths()
+    {
+        for (int i = 0; i < _months; i++)
+        {
+            DateOnly current = _startDate.AddMonths(i);
+            yield return new DateOnly(current.Year, current.Month, 1);
+        }
+    }
+
+    private bool IsInScheduleRange(DateOnly date)
+    {
+        DateOnly start = _startDate;
+        DateOnly end = _startDate.AddMonths(_months).AddDays(-1);
+        return date >= start && date <= end;
+    }
+
+    private static IReadOnlyList<DateOnly?> GetSundaySlots(int year, int month)
+    {
+        List<DateOnly?> sundays = new(5);
+        DateTime firstDay = new(year, month, 1);
+        int offset = ((int)DayOfWeek.Sunday - (int)firstDay.DayOfWeek + 7) % 7;
+        DateTime firstSunday = firstDay.AddDays(offset);
+
+        DateTime current = firstSunday;
+        while (current.Month == month)
+        {
+            sundays.Add(DateOnly.FromDateTime(current));
+            current = current.AddDays(7);
+        }
+
+        while (sundays.Count < 5)
+        {
+            sundays.Add(null);
+        }
+
+        return sundays;
+    }
+
+    private static string GetMonthLabel(DateOnly monthStart)
+    {
+        string monthName = SpanishCulture.TextInfo.ToTitleCase(SpanishCulture.DateTimeFormat.GetMonthName(monthStart.Month));
+        return $"{monthName} {monthStart.Year}";
+    }
+
+    [Inject] private IJSRuntime JsRuntime { get; set; } = null!;
+
+    private static readonly System.Globalization.CultureInfo SpanishCulture = new("es-ES");
 }

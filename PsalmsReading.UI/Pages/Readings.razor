@@ -35,6 +35,15 @@
 
 <div class="card shadow-sm">
     <div class="card-body">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <span class="type-badge type-lamento">Lamento</span>
+            <span class="type-badge type-alabanza">Alabanza</span>
+            <span class="type-badge type-himno">Himno</span>
+            <span class="type-badge type-realeza">Realeza</span>
+            <span class="type-badge type-sabiduria">Sabiduria</span>
+            <span class="type-badge type-agradecimiento">Agradecimiento</span>
+            <span class="type-badge type-confianza">Confianza</span>
+        </div>
         @if (_isLoading)
         {
             <p><em>Loading readings...</em></p>
@@ -54,23 +63,24 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var month in Enumerable.Range(1, 12))
+                        @foreach (int month in Enumerable.Range(1, 12))
                         {
-                            var slots = GetSundaySlots(_year, month);
+                            IReadOnlyList<DateOnly?> slots = GetSundaySlots(_year, month);
                             <tr>
                                 <th scope="row">@GetMonthName(month)</th>
-                                @for (var index = 0; index < 5; index++)
+                                @for (int index = 0; index < 5; index++)
                                 {
-                                    var slotDate = slots[index];
+                                    DateOnly? slotDate = slots[index];
                                     if (slotDate is null)
                                     {
                                         <td></td>
                                     }
                                     else
                                     {
-                                        var reading = GetReadingForDate(slotDate.Value);
+                                        ReadingRecordDto? reading = GetReadingForDate(slotDate.Value);
+                                        string? type = reading is null ? null : GetPsalmType(reading.PsalmId);
                                         <td>
-                                            <div class="d-flex flex-column gap-1">
+                                            <div class="d-flex flex-column gap-1 @GetCellClass(type)" @attributes="GetTooltipAttributes(type)">
                                                 @if (reading is not null)
                                                 {
                                                     <div class="fw-semibold">Salmo @reading.PsalmId - @GetPsalmTitle(reading.PsalmId)</div>
@@ -116,7 +126,7 @@
                         <label class="form-label">Psalm</label>
                         <select class="form-select" @bind="_selectedPsalmId">
                             <option value="0">Select a psalm</option>
-                            @foreach (var psalm in _psalms)
+                            @foreach (PsalmDto psalm in _psalms)
                             {
                                 <option value="@psalm.Id">@psalm.Id - @psalm.Title</option>
                             }
@@ -191,8 +201,8 @@
         {
             _loadError = null;
             _isLoading = true;
-            var start = new DateOnly(_year, 1, 1);
-            var end = new DateOnly(_year, 12, 31);
+            DateOnly start = new(_year, 1, 1);
+            DateOnly end = new(_year, 12, 31);
             _readings = (await ApiClient.GetReadingsAsync(start, end)).ToList();
             _readingsByDate = BuildReadingsByDate(_readings);
         }
@@ -291,7 +301,7 @@
 
     private async Task DeleteReading(Guid id)
     {
-        var confirm = await JsConfirm("Delete this reading? This cannot be undone.");
+        bool confirm = await JsConfirm("Delete this reading? This cannot be undone.");
         if (!confirm)
         {
             return;
@@ -334,19 +344,69 @@
     private string GetPsalmTitle(int id) =>
         _psalms.FirstOrDefault(p => p.Id == id)?.Title ?? "(not loaded)";
 
+    private string? GetPsalmType(int id) =>
+        _psalms.FirstOrDefault(p => p.Id == id)?.Type;
+
     private static string GetMonthName(int month) =>
         SpanishCulture.TextInfo.ToTitleCase(SpanishCulture.DateTimeFormat.GetMonthName(month));
 
     private string GetBibleLink(int psalmId) =>
         $"https://www.bible.com/bible/103/PSA.{psalmId}.NBLA";
 
+    private static string GetCellClass(string? type)
+    {
+        if (string.IsNullOrWhiteSpace(type))
+        {
+            return string.Empty;
+        }
+
+        return $"type-cell {GetTypeClass(type)}";
+    }
+
+    private static string GetTypeClass(string type)
+    {
+        string key = type.Trim().ToLowerInvariant();
+        return key switch
+        {
+            "lamento" => "type-lamento",
+            "alabanza" => "type-alabanza",
+            "himno" => "type-himno",
+            "realeza" => "type-realeza",
+            "sabiduria" => "type-sabiduria",
+            "sabiduría" => "type-sabiduria",
+            "agradecimiento" => "type-agradecimiento",
+            "confianza" => "type-confianza",
+            _ => "type-unknown"
+        };
+    }
+
+    private IReadOnlyDictionary<string, object>? GetTooltipAttributes(string? type)
+    {
+        if (string.IsNullOrWhiteSpace(type))
+        {
+            return null;
+        }
+
+        return new Dictionary<string, object>
+        {
+            ["data-bs-toggle"] = "tooltip",
+            ["data-bs-placement"] = "top",
+            ["title"] = type
+        };
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await JsRuntime.InvokeVoidAsync("psalmsReading.initTooltips");
+    }
+
     private ReadingRecordDto? GetReadingForDate(DateOnly date) =>
         _readingsByDate.GetValueOrDefault(date);
 
     private static Dictionary<DateOnly, ReadingRecordDto> BuildReadingsByDate(IEnumerable<ReadingRecordDto> readings)
     {
-        var results = new Dictionary<DateOnly, ReadingRecordDto>();
-        foreach (var record in readings)
+        Dictionary<DateOnly, ReadingRecordDto> results = new();
+        foreach (ReadingRecordDto record in readings)
         {
             results.TryAdd(record.DateRead, record);
         }
@@ -356,12 +416,12 @@
 
     private static IReadOnlyList<DateOnly?> GetSundaySlots(int year, int month)
     {
-        var sundays = new List<DateOnly?>(5);
-        var firstDay = new DateTime(year, month, 1);
-        var offset = ((int)DayOfWeek.Sunday - (int)firstDay.DayOfWeek + 7) % 7;
-        var firstSunday = firstDay.AddDays(offset);
+        List<DateOnly?> sundays = new(5);
+        DateTime firstDay = new(year, month, 1);
+        int offset = ((int)DayOfWeek.Sunday - (int)firstDay.DayOfWeek + 7) % 7;
+        DateTime firstSunday = firstDay.AddDays(offset);
 
-        var current = firstSunday;
+        DateTime current = firstSunday;
         while (current.Month == month)
         {
             sundays.Add(DateOnly.FromDateTime(current));
@@ -385,7 +445,7 @@
     private async Task<bool> HasDuplicateReading(int psalmId, DateOnly date, Guid? excludeId)
     {
         // Best-effort client-side check; API enforces uniqueness.
-        var allReadings = await ApiClient.GetReadingsAsync();
+        IReadOnlyList<ReadingRecordDto> allReadings = await ApiClient.GetReadingsAsync();
         return allReadings.Any(r => r.PsalmId == psalmId && r.DateRead == date && r.Id != excludeId);
     }
 

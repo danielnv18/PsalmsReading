@@ -24,6 +24,15 @@ else if (_filtered.Count == 0)
 }
 else
 {
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <span class="type-badge type-lamento">Lamento</span>
+        <span class="type-badge type-alabanza">Alabanza</span>
+        <span class="type-badge type-himno">Himno</span>
+        <span class="type-badge type-realeza">Realeza</span>
+        <span class="type-badge type-sabiduria">Sabiduria</span>
+        <span class="type-badge type-agradecimiento">Agradecimiento</span>
+        <span class="type-badge type-confianza">Confianza</span>
+    </div>
     <div class="table-responsive">
         <table class="table table-striped align-middle">
             <thead>
@@ -37,12 +46,21 @@ else
                 </tr>
             </thead>
             <tbody>
-                @foreach (var psalm in _filtered)
+                @foreach (PsalmDto psalm in _filtered)
                 {
                     <tr>
                         <td>@psalm.Id</td>
                         <td>@psalm.Title</td>
-                        <td>@(psalm.Type ?? "-")</td>
+                        <td>
+                            @if (string.IsNullOrWhiteSpace(psalm.Type))
+                            {
+                                <span>-</span>
+                            }
+                            else
+                            {
+                                <span class="type-badge @GetTypeClass(psalm.Type)">@psalm.Type</span>
+                            }
+                        </td>
                         <td>@psalm.TotalVerses</td>
                         <td>@(psalm.Themes.Count == 0 ? "-" : string.Join(", ", psalm.Themes))</td>
                         <td>@(psalm.Epigraphs.Count == 0 ? "-" : string.Join(", ", psalm.Epigraphs))</td>
@@ -92,7 +110,7 @@ else
             return;
         }
 
-        var term = _searchTerm.Trim();
+        string term = _searchTerm.Trim();
         _filtered = _psalms
             .Where(p =>
                 p.Title.Contains(term, StringComparison.OrdinalIgnoreCase) ||
@@ -100,5 +118,22 @@ else
                 p.Themes.Any(t => t.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
                 p.Epigraphs.Any(e => e.Contains(term, StringComparison.OrdinalIgnoreCase)))
             .ToList();
+    }
+
+    private static string GetTypeClass(string type)
+    {
+        var key = type.Trim().ToLowerInvariant();
+        return key switch
+        {
+            "lamento" => "type-lamento",
+            "alabanza" => "type-alabanza",
+            "himno" => "type-himno",
+            "realeza" => "type-realeza",
+            "sabiduria" => "type-sabiduria",
+            "sabiduría" => "type-sabiduria",
+            "agradecimiento" => "type-agradecimiento",
+            "confianza" => "type-confianza",
+            _ => "type-unknown"
+        };
     }
 }

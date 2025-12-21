@@ -113,3 +113,71 @@ code {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+.type-badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: 0.01em;
+    background-color: var(--type-color, #495057);
+}
+
+.type-lamento {
+    --type-color: #0b7285;
+    --type-bg: #ccf5ff;
+}
+
+.type-alabanza {
+    --type-color: #e03131;
+    --type-bg: #ffe3e3;
+}
+
+.type-himno {
+    --type-color: #f08c00;
+    --type-bg: #ffe8cc;
+}
+
+.type-realeza {
+    --type-color: #e67700;
+    --type-bg: #ffe8cc;
+}
+
+.type-sabiduria {
+    --type-color: #f2b705;
+    --type-bg: #fff9db;
+}
+
+.type-agradecimiento {
+    --type-color: #2f9e44;
+    --type-bg: #d3f9d8;
+}
+
+.type-confianza {
+    --type-color: #4dabf7;
+    --type-bg: #e7f5ff;
+}
+
+.type-unknown {
+    --type-color: #495057;
+    --type-bg: #f1f3f5;
+}
+
+.type-himno.type-badge {
+    color: #1f1f1f;
+}
+
+.type-cell {
+    background-color: var(--type-bg, transparent);
+    color: #111;
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    height: 100%;
+    width: 100%;
+}
+
+.type-cell .text-muted {
+    color: #111 !important;
+}

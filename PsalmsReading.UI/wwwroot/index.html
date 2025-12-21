@@ -28,6 +28,19 @@
         <a href="." class="reload">Reload</a>
         <span class="dismiss">🗙</span>
     </div>
+    <script src="lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        window.psalmsReading = window.psalmsReading || {};
+        window.psalmsReading.initTooltips = function () {
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+                if (!tooltipTriggerEl.dataset.tooltipInitialized) {
+                    new bootstrap.Tooltip(tooltipTriggerEl);
+                    tooltipTriggerEl.dataset.tooltipInitialized = "true";
+                }
+            });
+        };
+    </script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>
 

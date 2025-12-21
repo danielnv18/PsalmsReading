@@ -1,36 +1,27 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">Psalms Reading</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
+        <div class="collapse navbar-collapse" id="mainNav">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Home</NavLink>
+                </li>
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="psalms">Psalms</NavLink>
+                </li>
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="readings">Readings</NavLink>
+                </li>
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="schedule">Schedule & ICS</NavLink>
+                </li>
+            </ul>
+            <a class="nav-link text-white-50" href="https://learn.microsoft.com/aspnet/core/" target="_blank" rel="noopener noreferrer">
+                About
+            </a>
+        </div>
     </div>
-</div>
-
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="nav flex-column">
-        <NavLink class="nav-link nav-item px-3" href="" Match="NavLinkMatch.All">
-            <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-        </NavLink>
-        <NavLink class="nav-link nav-item px-3" href="psalms">
-            <span class="bi bi-list-ul-nav-menu" aria-hidden="true"></span> Psalms
-        </NavLink>
-        <NavLink class="nav-link nav-item px-3" href="readings">
-            <span class="bi bi-calendar-check-nav-menu" aria-hidden="true"></span> Readings
-        </NavLink>
-        <NavLink class="nav-link nav-item px-3" href="schedule">
-            <span class="bi bi-calendar-event-nav-menu" aria-hidden="true"></span> Schedule & ICS
-        </NavLink>
-    </nav>
-</div>
-
-@code {
-    private bool _collapseNavMenu = true;
-
-    private string? NavMenuCssClass => _collapseNavMenu ? "collapse" : null;
-
-    private void ToggleNavMenu()
-    {
-        _collapseNavMenu = !_collapseNavMenu;
-    }
-}
+</nav>
