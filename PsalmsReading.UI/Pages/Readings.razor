@@ -3,12 +3,20 @@
 
 <PageTitle>Readings</PageTitle>
 
-<div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-2">
+<div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-3">
     <div>
-        <h1 class="mb-0">Reading history</h1>
-        <p class="text-muted mb-0">Capture the Sunday you read a psalm. Only the date is stored.</p>
+        <h1 class="mb-0">Readings</h1>
+        <p class="text-muted mb-0">View Sunday readings by month and week.</p>
     </div>
-    <button class="btn btn-primary" @onclick="OpenCreate">Add reading</button>
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-secondary" @onclick="() => ChangeYear(-1)" disabled="@_isLoading">
+            Prev
+        </button>
+        <span class="fs-5 fw-semibold">@_year</span>
+        <button class="btn btn-outline-secondary" @onclick="() => ChangeYear(1)" disabled="@_isLoading">
+            Next
+        </button>
+    </div>
 </div>
 
 @if (_loadError is not null)
@@ -27,49 +35,64 @@
 
 <div class="card shadow-sm">
     <div class="card-body">
-        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
-            <h5 class="card-title mb-0">History</h5>
-            <div class="d-flex flex-wrap gap-2">
-                <InputDate @bind-Value="_filterFrom" class="form-control" placeholder="From" />
-                <InputDate @bind-Value="_filterTo" class="form-control" placeholder="To" />
-                <button class="btn btn-outline-secondary" @onclick="LoadReadings" disabled="isLoading">Apply</button>
-                <button class="btn btn-link text-decoration-none" @onclick="ResetFilters" disabled="isLoading">Reset</button>
-            </div>
-        </div>
-
         @if (_isLoading)
         {
             <p><em>Loading readings...</em></p>
         }
-        else if (_readings.Count == 0)
-        {
-            <p>No readings recorded.</p>
-        }
         else
         {
             <div class="table-responsive">
-                <table class="table table-striped align-middle">
-                    <thead>
+                <table class="table table-bordered align-middle">
+                    <thead class="table-light">
                         <tr>
-                            <th style="width: 18%">Date</th>
-                            <th style="width: 12%">Psalm</th>
-                            <th>Title</th>
-                            <th style="width: 15%">Actions</th>
+                            <th style="width: 18%">Mes</th>
+                            <th style="width: 16%">1er domingo</th>
+                            <th style="width: 16%">2do domingo</th>
+                            <th style="width: 16%">3er domingo</th>
+                            <th style="width: 16%">4to domingo</th>
+                            <th style="width: 16%">5to domingo</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var record in _readings.OrderByDescending(r => r.DateRead))
+                        @foreach (var month in Enumerable.Range(1, 12))
                         {
+                            var slots = GetSundaySlots(_year, month);
                             <tr>
-                                <td>@record.DateRead.ToString("yyyy-MM-dd")</td>
-                                <td>@record.PsalmId</td>
-                                <td>@GetPsalmTitle(record.PsalmId)</td>
-                                <td>
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <button class="btn btn-outline-primary" @onclick="() => StartEdit(record)">Edit</button>
-                                        <button class="btn btn-outline-danger" @onclick="() => DeleteReading(record.Id)">Delete</button>
-                                    </div>
-                                </td>
+                                <th scope="row">@GetMonthName(month)</th>
+                                @for (var index = 0; index < 5; index++)
+                                {
+                                    var slotDate = slots[index];
+                                    if (slotDate is null)
+                                    {
+                                        <td></td>
+                                    }
+                                    else
+                                    {
+                                        var reading = GetReadingForDate(slotDate.Value);
+                                        <td>
+                                            <div class="d-flex flex-column gap-1">
+                                                @if (reading is not null)
+                                                {
+                                                    <div class="fw-semibold">Salmo @reading.PsalmId - @GetPsalmTitle(reading.PsalmId)</div>
+                                                    <div class="text-muted">Día @slotDate.Value.Day</div>
+                                                    <a class="link-primary" href="@GetBibleLink(reading.PsalmId)" target="_blank" rel="noopener noreferrer">
+                                                        Leer en Bible.com
+                                                    </a>
+                                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => StartEdit(reading)">
+                                                        Editar
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <div class="text-muted">Día @slotDate.Value.Day</div>
+                                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenCreate(slotDate.Value)">
+                                                        Agregar
+                                                    </button>
+                                                }
+                                            </div>
+                                        </td>
+                                    }
+                                }
                             </tr>
                         }
                     </tbody>
@@ -109,6 +132,12 @@
                     }
                 </div>
                 <div class="modal-footer">
+                    @if (_editingId is not null)
+                    {
+                        <button class="btn btn-outline-danger me-auto" @onclick="() => DeleteReading(_editingId.Value)" disabled="@_isSaving">
+                            Delete
+                        </button>
+                    }
                     <button class="btn btn-secondary" @onclick="CancelEdit" disabled="@_isSaving">Cancel</button>
                     <button class="btn btn-primary" @onclick="SaveReading" disabled="@(_isSaving || _selectedPsalmId <= 0)">
                         @(_isSaving ? "Saving..." : SubmitLabel)
@@ -123,15 +152,15 @@
 @code {
     private List<PsalmDto> _psalms = [];
     private List<ReadingRecordDto> _readings = [];
+    private Dictionary<DateOnly, ReadingRecordDto> _readingsByDate = [];
     private bool _isLoading = true;
     private bool _isSaving;
     private string? _loadError;
     private string? _saveError;
     private string? _saveMessage;
+    private int _year = DateTime.Today.Year;
     private int _selectedPsalmId;
     private DateOnly _dateRead = DateOnly.FromDateTime(DateTime.Today);
-    private DateOnly? _filterFrom;
-    private DateOnly? _filterTo;
     private Guid? _editingId;
     private bool _showModal;
     private string? _modalError;
@@ -162,7 +191,10 @@
         {
             _loadError = null;
             _isLoading = true;
-            _readings = (await ApiClient.GetReadingsAsync(_filterFrom, _filterTo)).ToList();
+            var start = new DateOnly(_year, 1, 1);
+            var end = new DateOnly(_year, 12, 31);
+            _readings = (await ApiClient.GetReadingsAsync(start, end)).ToList();
+            _readingsByDate = BuildReadingsByDate(_readings);
         }
         catch (Exception ex)
         {
@@ -230,11 +262,13 @@
         _showModal = true;
     }
 
-    private void OpenCreate()
+    private void OpenCreate(DateOnly dateRead)
     {
         _editingId = null;
         _selectedPsalmId = 0;
-        _dateRead = DateOnly.FromDateTime(DateTime.Today);
+        _dateRead = dateRead;
+        _saveMessage = null;
+        _saveError = null;
         _modalError = null;
         _showModal = true;
     }
@@ -283,7 +317,7 @@
         }
     }
 
-    [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
+    [Inject] private IJSRuntime JsRuntime { get; set; } = null!;
 
     private async Task<bool> JsConfirm(string message)
     {
@@ -297,15 +331,56 @@
         }
     }
 
-    private void ResetFilters()
-    {
-        _filterFrom = null;
-        _filterTo = null;
-        _ = LoadReadings();
-    }
-
     private string GetPsalmTitle(int id) =>
         _psalms.FirstOrDefault(p => p.Id == id)?.Title ?? "(not loaded)";
+
+    private static string GetMonthName(int month) =>
+        SpanishCulture.TextInfo.ToTitleCase(SpanishCulture.DateTimeFormat.GetMonthName(month));
+
+    private string GetBibleLink(int psalmId) =>
+        $"https://www.bible.com/bible/103/PSA.{psalmId}.NBLA";
+
+    private ReadingRecordDto? GetReadingForDate(DateOnly date) =>
+        _readingsByDate.GetValueOrDefault(date);
+
+    private static Dictionary<DateOnly, ReadingRecordDto> BuildReadingsByDate(IEnumerable<ReadingRecordDto> readings)
+    {
+        var results = new Dictionary<DateOnly, ReadingRecordDto>();
+        foreach (var record in readings)
+        {
+            results.TryAdd(record.DateRead, record);
+        }
+
+        return results;
+    }
+
+    private static IReadOnlyList<DateOnly?> GetSundaySlots(int year, int month)
+    {
+        var sundays = new List<DateOnly?>(5);
+        var firstDay = new DateTime(year, month, 1);
+        var offset = ((int)DayOfWeek.Sunday - (int)firstDay.DayOfWeek + 7) % 7;
+        var firstSunday = firstDay.AddDays(offset);
+
+        var current = firstSunday;
+        while (current.Month == month)
+        {
+            sundays.Add(DateOnly.FromDateTime(current));
+            current = current.AddDays(7);
+        }
+
+        while (sundays.Count < 5)
+        {
+            sundays.Add(null);
+        }
+
+        return sundays;
+    }
+
+    private async Task ChangeYear(int delta)
+    {
+        _year += delta;
+        await LoadReadings();
+    }
 
     private async Task<bool> HasDuplicateReading(int psalmId, DateOnly date, Guid? excludeId)
     {
@@ -313,4 +388,6 @@
         var allReadings = await ApiClient.GetReadingsAsync();
         return allReadings.Any(r => r.PsalmId == psalmId && r.DateRead == date && r.Id != excludeId);
     }
+
+    private static readonly System.Globalization.CultureInfo SpanishCulture = new("es-ES");
 }
