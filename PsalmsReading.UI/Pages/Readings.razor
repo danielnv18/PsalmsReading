@@ -3,109 +3,122 @@
 
 <PageTitle>Readings</PageTitle>
 
-<h1>Reading history</h1>
-<p class="text-muted">Capture the Sunday you read a psalm. Only the date is stored.</p>
+<div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-2">
+    <div>
+        <h1 class="mb-0">Reading history</h1>
+        <p class="text-muted mb-0">Capture the Sunday you read a psalm. Only the date is stored.</p>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreate">Add reading</button>
+</div>
 
 @if (_loadError is not null)
 {
     <div class="alert alert-danger">@_loadError</div>
 }
 
-<div class="row g-4">
-    <div class="col-lg-5">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h5 class="card-title">@FormTitle</h5>
-                <div class="mb-3">
-                    <label class="form-label">Psalm</label>
-                    <select class="form-select" @bind="_selectedPsalmId">
-                        <option value="0">Select a psalm</option>
-                        @foreach (var psalm in _psalms)
+@if (_saveMessage is not null)
+{
+    <div class="alert alert-success">@_saveMessage</div>
+}
+@if (_saveError is not null)
+{
+    <div class="alert alert-danger">@_saveError</div>
+}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
+            <h5 class="card-title mb-0">History</h5>
+            <div class="d-flex flex-wrap gap-2">
+                <InputDate @bind-Value="_filterFrom" class="form-control" placeholder="From" />
+                <InputDate @bind-Value="_filterTo" class="form-control" placeholder="To" />
+                <button class="btn btn-outline-secondary" @onclick="LoadReadings" disabled="isLoading">Apply</button>
+                <button class="btn btn-link text-decoration-none" @onclick="ResetFilters" disabled="isLoading">Reset</button>
+            </div>
+        </div>
+
+        @if (_isLoading)
+        {
+            <p><em>Loading readings...</em></p>
+        }
+        else if (_readings.Count == 0)
+        {
+            <p>No readings recorded.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 18%">Date</th>
+                            <th style="width: 12%">Psalm</th>
+                            <th>Title</th>
+                            <th style="width: 15%">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var record in _readings.OrderByDescending(r => r.DateRead))
                         {
-                            <option value="@psalm.Id">@psalm.Id - @psalm.Title</option>
+                            <tr>
+                                <td>@record.DateRead.ToString("yyyy-MM-dd")</td>
+                                <td>@record.PsalmId</td>
+                                <td>@GetPsalmTitle(record.PsalmId)</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn btn-outline-primary" @onclick="() => StartEdit(record)">Edit</button>
+                                        <button class="btn btn-outline-danger" @onclick="() => DeleteReading(record.Id)">Delete</button>
+                                    </div>
+                                </td>
+                            </tr>
                         }
-                    </select>
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@if (_showModal)
+{
+    <div class="modal fade show" style="display:block;" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@FormTitle</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CancelEdit"></button>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Date read</label>
-                    <InputDate @bind-Value="_dateRead" class="form-control" />
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Psalm</label>
+                        <select class="form-select" @bind="_selectedPsalmId">
+                            <option value="0">Select a psalm</option>
+                            @foreach (var psalm in _psalms)
+                            {
+                                <option value="@psalm.Id">@psalm.Id - @psalm.Title</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Date read</label>
+                        <InputDate @bind-Value="_dateRead" class="form-control" />
+                    </div>
+                    @if (_modalError is not null)
+                    {
+                        <div class="alert alert-danger">@_modalError</div>
+                    }
                 </div>
-                <div class="d-flex gap-2">
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelEdit" disabled="@_isSaving">Cancel</button>
                     <button class="btn btn-primary" @onclick="SaveReading" disabled="@(_isSaving || _selectedPsalmId <= 0)">
                         @(_isSaving ? "Saving..." : SubmitLabel)
                     </button>
-                    @if (_editingId is not null)
-                    {
-                        <button class="btn btn-outline-secondary" @onclick="CancelEdit" disabled="isSaving">Cancel</button>
-                    }
                 </div>
-                @if (_saveError is not null)
-                {
-                    <div class="alert alert-danger mt-3">@_saveError</div>
-                }
-                @if (_saveMessage is not null)
-                {
-                    <div class="alert alert-success mt-3">@_saveMessage</div>
-                }
             </div>
         </div>
     </div>
-    <div class="col-lg-7">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="card-title mb-0">History</h5>
-                    <div class="d-flex gap-2">
-                        <InputDate @bind-Value="_filterFrom" class="form-control" placeholder="From" />
-                        <InputDate @bind-Value="_filterTo" class="form-control" placeholder="To" />
-                        <button class="btn btn-outline-secondary" @onclick="LoadReadings" disabled="isLoading">Apply</button>
-                        <button class="btn btn-link text-decoration-none" @onclick="ResetFilters" disabled="isLoading">Reset</button>
-                    </div>
-                </div>
-
-                @if (_isLoading)
-                {
-                    <p><em>Loading readings...</em></p>
-                }
-                else if (_readings.Count == 0)
-                {
-                    <p>No readings recorded.</p>
-                }
-                else
-                {
-                    <div class="table-responsive">
-                        <table class="table table-striped align-middle">
-                            <thead>
-                                <tr>
-                                    <th style="width: 20%">Date</th>
-                                    <th style="width: 15%">Psalm</th>
-                                    <th>Title</th>
-                                    <th style="width: 18%">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var record in _readings.OrderByDescending(r => r.DateRead))
-                                {
-                                    <tr>
-                                        <td>@record.DateRead.ToString("yyyy-MM-dd")</td>
-                                        <td>@record.PsalmId</td>
-                                        <td>@GetPsalmTitle(record.PsalmId)</td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm" role="group">
-                                                <button class="btn btn-outline-primary" @onclick="() => StartEdit(record)">Edit</button>
-                                                <button class="btn btn-outline-danger" @onclick="() => DeleteReading(record.Id)">Delete</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </div>
-        </div>
-    </div>
-</div>
+    <div class="modal-backdrop fade show"></div>
+}
 
 @code {
     private List<PsalmDto> _psalms = [];
@@ -120,6 +133,8 @@
     private DateOnly? _filterFrom;
     private DateOnly? _filterTo;
     private Guid? _editingId;
+    private bool _showModal;
+    private string? _modalError;
     private string FormTitle => _editingId is null ? "Add reading" : "Edit reading";
     private string SubmitLabel => _editingId is null ? "Save" : "Update";
 
@@ -171,11 +186,12 @@
         {
             _saveError = null;
             _saveMessage = null;
+            _modalError = null;
             _isSaving = true;
 
             if (await HasDuplicateReading(_selectedPsalmId, _dateRead, _editingId))
             {
-                _saveError = "This psalm already has a reading on that date.";
+                _modalError = "This psalm already has a reading on that date.";
                 return;
             }
 
@@ -191,11 +207,11 @@
             }
 
             await LoadReadings();
-            CancelEdit();
+            CloseModal();
         }
         catch (Exception ex)
         {
-            _saveError = ex.Message;
+            _modalError = ex.Message;
         }
         finally
         {
@@ -210,15 +226,33 @@
         _dateRead = record.DateRead;
         _saveMessage = null;
         _saveError = null;
+        _modalError = null;
+        _showModal = true;
+    }
+
+    private void OpenCreate()
+    {
+        _editingId = null;
+        _selectedPsalmId = 0;
+        _dateRead = DateOnly.FromDateTime(DateTime.Today);
+        _modalError = null;
+        _showModal = true;
     }
 
     private void CancelEdit()
+    {
+        CloseModal();
+    }
+
+    private void CloseModal()
     {
         _editingId = null;
         _selectedPsalmId = 0;
         _dateRead = DateOnly.FromDateTime(DateTime.Today);
         _saveMessage = null;
         _saveError = null;
+        _modalError = null;
+        _showModal = false;
     }
 
     private async Task DeleteReading(Guid id)
