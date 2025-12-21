@@ -7,7 +7,7 @@
 <p class="text-muted">Data comes from <code>psalms_full_list.csv</code> imported into the database.</p>
 
 <div class="mb-3">
-    <input class="form-control" placeholder="Filter by title, type, theme, or epigraph..." @bind="_searchTerm" @bind:event="oninput" />
+    <input class="form-control" placeholder="Filter by title or type..." @bind="_searchTerm" @bind:event="oninput" />
 </div>
 
 @if (_error is not null)
@@ -41,13 +41,14 @@ else
                     <th>Title</th>
                     <th style="width:10%">Type</th>
                     <th style="width:10%">Verses</th>
-                    <th style="width:20%">Themes</th>
-                    <th style="width:20%">Epigraphs</th>
+                    <th style="width:18%">Reading stats</th>
+                    <th style="width:12%">Bible.com</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (PsalmDto psalm in _filtered)
                 {
+                    PsalmReadingStats stats = GetReadingStats(psalm.Id);
                     <tr>
                         <td>@psalm.Id</td>
                         <td>@psalm.Title</td>
@@ -62,8 +63,17 @@ else
                             }
                         </td>
                         <td>@psalm.TotalVerses</td>
-                        <td>@(psalm.Themes.Count == 0 ? "-" : string.Join(", ", psalm.Themes))</td>
-                        <td>@(psalm.Epigraphs.Count == 0 ? "-" : string.Join(", ", psalm.Epigraphs))</td>
+                        <td>
+                            <div class="d-flex flex-column gap-1">
+                                <span>@stats.ReadCount read(s)</span>
+                                <span class="text-muted">Last: @(stats.LastRead is null ? "-" : stats.LastRead.Value.ToString("yyyy-MM-dd"))</span>
+                            </div>
+                        </td>
+                        <td>
+                            <a class="link-primary" href="@GetBibleLink(psalm.Id)" target="_blank" rel="noopener noreferrer">
+                                Read
+                            </a>
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -74,6 +84,8 @@ else
 @code {
     private List<PsalmDto> _psalms = [];
     private List<PsalmDto> _filtered = [];
+    private List<ReadingRecordDto> _readings = [];
+    private Dictionary<int, PsalmReadingStats> _readingStats = [];
     private bool _isLoading = true;
     private string? _error;
     private string _searchTerm = string.Empty;
@@ -90,6 +102,8 @@ else
             _error = null;
             _isLoading = true;
             _psalms = (await ApiClient.GetPsalmsAsync()).OrderBy(p => p.Id).ToList();
+            _readings = (await ApiClient.GetReadingsAsync()).ToList();
+            _readingStats = BuildReadingStats(_readings);
             ApplyFilter();
         }
         catch (Exception ex)
@@ -114,15 +128,13 @@ else
         _filtered = _psalms
             .Where(p =>
                 p.Title.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                (p.Type?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                p.Themes.Any(t => t.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
-                p.Epigraphs.Any(e => e.Contains(term, StringComparison.OrdinalIgnoreCase)))
+                (p.Type?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false))
             .ToList();
     }
 
     private static string GetTypeClass(string type)
     {
-        var key = type.Trim().ToLowerInvariant();
+        string key = type.Trim().ToLowerInvariant();
         return key switch
         {
             "lamento" => "type-lamento",
@@ -136,4 +148,38 @@ else
             _ => "type-unknown"
         };
     }
+
+    private static Dictionary<int, PsalmReadingStats> BuildReadingStats(IEnumerable<ReadingRecordDto> readings)
+    {
+        Dictionary<int, PsalmReadingStats> stats = new();
+        foreach (ReadingRecordDto reading in readings)
+        {
+            if (!stats.TryGetValue(reading.PsalmId, out PsalmReadingStats? current))
+            {
+                stats[reading.PsalmId] = new PsalmReadingStats(1, reading.DateRead);
+                continue;
+            }
+
+            int readCount = current.ReadCount + 1;
+            DateOnly? lastRead = current.LastRead;
+            if (lastRead is null || reading.DateRead > lastRead)
+            {
+                lastRead = reading.DateRead;
+            }
+
+            stats[reading.PsalmId] = new PsalmReadingStats(readCount, lastRead);
+        }
+
+        return stats;
+    }
+
+    private PsalmReadingStats GetReadingStats(int psalmId) =>
+        _readingStats.TryGetValue(psalmId, out PsalmReadingStats? stats)
+            ? stats
+            : new PsalmReadingStats(0, null);
+
+    private static string GetBibleLink(int psalmId) =>
+        $"https://www.bible.com/bible/103/PSA.{psalmId}.NBLA";
+
+    private sealed record PsalmReadingStats(int ReadCount, DateOnly? LastRead);
 }
