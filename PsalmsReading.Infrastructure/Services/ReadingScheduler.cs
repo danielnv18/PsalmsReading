@@ -1,4 +1,5 @@
 ﻿using PsalmsReading.Application.Interfaces;
+using PsalmsReading.Domain;
 using PsalmsReading.Domain.Entities;
 
 namespace PsalmsReading.Infrastructure.Services;
@@ -9,7 +10,6 @@ public sealed class ReadingScheduler(
     Random? random = null)
     : IReadingScheduler
 {
-    private static readonly HashSet<int> ExcludedPsalmIds = [35, 55, 59, 69, 79, 109, 137];
     private static readonly HashSet<int> HolyWeekPreferredIds = [113, 114, 115, 116, 117, 118];
 
     private readonly Random _random = random ?? new Random();
@@ -80,7 +80,7 @@ public sealed class ReadingScheduler(
     }
 
     private static bool IsAllowedPsalm(Psalm psalm) =>
-        psalm.IsShortReadingCandidate(30) && !ExcludedPsalmIds.Contains(psalm.Id);
+        PsalmRules.IsReadable(psalm);
 
     private (Psalm? Psalm, string Rule) ApplyRules(ScheduleContext context)
     {

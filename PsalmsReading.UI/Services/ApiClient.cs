@@ -78,6 +78,18 @@ public sealed class ApiClient
         return await response.Content.ReadAsStringAsync(cancellationToken);
     }
 
+    public async Task<StatsDto> GetStatsAsync(string range, int? year = default, CancellationToken cancellationToken = default)
+    {
+        string uri = $"stats?range={Uri.EscapeDataString(range)}";
+        if (year.HasValue)
+        {
+            uri += $"&year={year.Value}";
+        }
+
+        var result = await _httpClient.GetFromJsonAsync<StatsDto>(uri, _jsonOptions, cancellationToken);
+        return result ?? new StatsDto("all", null, null, 0, 0, 0, 0, 0, Array.Empty<TypeStatsDto>());
+    }
+
     private static async Task EnsureSuccess(HttpResponseMessage response)
     {
         if (response.IsSuccessStatusCode)

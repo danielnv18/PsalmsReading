@@ -26,6 +26,14 @@ public sealed class PlannedReadingRepository : IPlannedReadingRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<PlannedReading>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.PlannedReadings
+            .AsNoTracking()
+            .OrderBy(p => p.ScheduledDate)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<PlannedReading>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
         return await _dbContext.PlannedReadings
@@ -37,7 +45,7 @@ public sealed class PlannedReadingRepository : IPlannedReadingRepository
 
     public async Task ClearRangeAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
-        var existing = await _dbContext.PlannedReadings
+        List<PlannedReading> existing = await _dbContext.PlannedReadings
             .Where(p => p.ScheduledDate >= from && p.ScheduledDate <= to)
             .ToListAsync(cancellationToken);
 

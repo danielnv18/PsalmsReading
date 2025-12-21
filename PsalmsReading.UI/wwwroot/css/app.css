@@ -181,3 +181,27 @@ code {
 .type-cell .text-muted {
     color: #111 !important;
 }
+
+.stats-progress {
+    height: 0.5rem;
+}
+
+.stats-bar {
+    height: 0.5rem;
+    background-color: #e9ecef;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.stats-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+}
+
+.stats-bar-fill--actual {
+    background-color: #0d6efd;
+}
+
+.stats-bar-fill--planned {
+    background-color: #198754;
+}

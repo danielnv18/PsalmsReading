@@ -4,6 +4,7 @@ using PsalmsReading.Api.Contracts;
 using PsalmsReading.Api.Json;
 using PsalmsReading.Application.Interfaces;
 using PsalmsReading.Application.Models;
+using PsalmsReading.Domain;
 using PsalmsReading.Domain.Entities;
 using PsalmsReading.Infrastructure.Data;
 using PsalmsReading.Infrastructure.Repositories;
@@ -130,7 +131,7 @@ api.MapPost("/readings", async (CreateReadingRequest request, IReadingRepository
         return Results.Conflict("A reading for this psalm and date already exists.");
     }
 
-    var record = new PsalmsReading.Domain.Entities.ReadingRecord(Guid.NewGuid(), request.PsalmId, request.DateRead);
+    var record = new ReadingRecord(Guid.NewGuid(), request.PsalmId, request.DateRead);
     await repository.AddAsync(record, cancellationToken);
     return Results.Created($"/api/readings/{record.Id}", MapReading(record));
 });
@@ -148,7 +149,7 @@ api.MapPut("/readings/{id:guid}", async (Guid id, UpdateReadingRequest request, 
         return Results.Conflict("A reading for this psalm and date already exists.");
     }
 
-    var updated = new PsalmsReading.Domain.Entities.ReadingRecord(id, request.PsalmId, request.DateRead);
+    var updated = new ReadingRecord(id, request.PsalmId, request.DateRead);
     var success = await repository.UpdateAsync(updated, cancellationToken);
     return success ? Results.Ok(MapReading(updated)) : Results.NotFound();
 });
@@ -162,6 +163,92 @@ api.MapDelete("/readings/{id:guid}", async (Guid id, IReadingRepository reposito
 
     var success = await repository.DeleteAsync(id, cancellationToken);
     return success ? Results.NoContent() : Results.NotFound();
+});
+
+api.MapGet("/stats", async (
+    string? range,
+    int? year,
+    IPsalmRepository psalmRepository,
+    IReadingRepository readingRepository,
+    IPlannedReadingRepository plannedRepository,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryParseRange(range, out StatsRange rangeValue))
+    {
+        return Results.BadRequest("Range must be all, last6months, or year.");
+    }
+
+    DateOnly? rangeStart = null;
+    DateOnly? rangeEnd = null;
+    var today = DateOnly.FromDateTime(DateTime.Today);
+
+    switch (rangeValue)
+    {
+        case StatsRange.Last6Months:
+            rangeEnd = today;
+            rangeStart = today.AddMonths(-6);
+            break;
+        case StatsRange.Year when !year.HasValue || year.Value < 1:
+            return Results.BadRequest("Year is required when range=year.");
+        case StatsRange.Year:
+            rangeStart = new DateOnly(year.Value, 1, 1);
+            rangeEnd = new DateOnly(year.Value, 12, 31);
+            break;
+        case StatsRange.All:
+            break;
+        default:
+            throw new ArgumentOutOfRangeException();
+    }
+
+    IReadOnlyList<Psalm> psalms = await psalmRepository.GetAllAsync(cancellationToken);
+    var readablePsalms = psalms.Where(PsalmRules.IsReadable).ToList();
+    var readableById = readablePsalms.ToDictionary(p => p.Id);
+
+    IReadOnlyList<ReadingRecord> readingsAll = await readingRepository.GetAllAsync(cancellationToken);
+    IReadOnlyList<PlannedReading> plannedAll = await plannedRepository.GetAllAsync(cancellationToken);
+
+    List<ReadingRecord> readingsInRange = FilterReadings(readingsAll, rangeStart, rangeEnd);
+    List<PlannedReading> plannedInRange = FilterPlannedReadings(plannedAll, rangeStart, rangeEnd);
+
+    var readPsalmIds = readingsAll
+        .Where(r => readableById.ContainsKey(r.PsalmId))
+        .Select(r => r.PsalmId)
+        .ToHashSet();
+
+    var plannedPsalmIds = plannedAll
+        .Where(p => readableById.ContainsKey(p.PsalmId))
+        .Select(p => p.PsalmId)
+        .ToHashSet();
+
+    HashSet<int> projectedPsalmIds = new(readPsalmIds);
+    projectedPsalmIds.UnionWith(plannedPsalmIds);
+
+    var totalReadable = readablePsalms.Count;
+    var readablePsalmsRead = readPsalmIds.Count;
+    var readablePsalmsProjected = projectedPsalmIds.Count;
+
+    var actualReadsInRange = readingsInRange.Count(r => readableById.ContainsKey(r.PsalmId));
+    var plannedReadsInRange = plannedInRange.Count(p => readableById.ContainsKey(p.PsalmId));
+
+    List<TypeStatsDto> typeStats = BuildTypeStats(
+        readablePsalms,
+        readingsInRange,
+        plannedInRange,
+        readPsalmIds,
+        projectedPsalmIds);
+
+    StatsDto response = new(
+        GetRangeLabel(rangeValue),
+        rangeStart,
+        rangeEnd,
+        totalReadable,
+        readablePsalmsRead,
+        readablePsalmsProjected,
+        actualReadsInRange,
+        plannedReadsInRange,
+        typeStats);
+
+    return Results.Ok(response);
 });
 
 api.MapPost("/schedule", async (ScheduleRequest request, IReadingScheduler scheduler, IPlannedReadingRepository plannedRepository, CancellationToken cancellationToken) =>
@@ -209,27 +296,92 @@ api.MapPost("/schedule/ics", async (ScheduleRequest request, IReadingScheduler s
     await plannedRepository.SavePlansAsync(planned, cancellationToken);
 
     var ics = await exporter.CreateCalendarAsync(planned, cancellationToken);
-    if (string.IsNullOrWhiteSpace(ics))
-    {
-        return Results.NoContent();
-    }
-
-    return Results.Text(ics, "text/calendar");
+    return string.IsNullOrWhiteSpace(ics) ? Results.NoContent() : Results.Text(ics, "text/calendar");
 });
 
 static bool IsValidMonths(int months) => months is 1 or 2 or 3 or 6 or 12;
 
-static PsalmDto MapPsalm(PsalmsReading.Domain.Entities.Psalm psalm) =>
+static PsalmDto MapPsalm(Psalm psalm) =>
     new(psalm.Id, psalm.Title, psalm.TotalVerses, psalm.Type, psalm.Epigraphs, psalm.Themes);
 
-static ReadingRecordDto MapReading(PsalmsReading.Domain.Entities.ReadingRecord record) =>
+static ReadingRecordDto MapReading(ReadingRecord record) =>
     new(record.Id, record.PsalmId, record.DateRead);
 
-static PlannedReadingDto MapPlannedReading(PsalmsReading.Domain.Entities.PlannedReading planned) =>
+static PlannedReadingDto MapPlannedReading(PlannedReading planned) =>
     new(planned.Id, planned.PsalmId, planned.ScheduledDate, planned.RuleApplied);
 
+static string GetRangeLabel(StatsRange range) =>
+    range switch
+    {
+        StatsRange.All => "all",
+        StatsRange.Last6Months => "last6months",
+        StatsRange.Year => "year",
+        _ => "all"
+    };
+
+static List<ReadingRecord> FilterReadings(IReadOnlyList<ReadingRecord> readings, DateOnly? start, DateOnly? end)
+{
+    IEnumerable<ReadingRecord> filtered = readings;
+    if (start.HasValue && end.HasValue)
+    {
+        filtered = filtered.Where(r => r.DateRead >= start.Value && r.DateRead <= end.Value);
+    }
+
+    return filtered.ToList();
+}
+
+static List<PlannedReading> FilterPlannedReadings(IReadOnlyList<PlannedReading> readings, DateOnly? start, DateOnly? end)
+{
+    IEnumerable<PlannedReading> filtered = readings;
+    if (start.HasValue && end.HasValue)
+    {
+        filtered = filtered.Where(r => r.ScheduledDate >= start.Value && r.ScheduledDate <= end.Value);
+    }
+
+    return filtered.ToList();
+}
+
+static List<TypeStatsDto> BuildTypeStats(
+    IReadOnlyList<Psalm> readablePsalms,
+    IReadOnlyList<ReadingRecord> readingsInRange,
+    IReadOnlyList<PlannedReading> plannedInRange,
+    IReadOnlySet<int> readPsalmIds,
+    IReadOnlySet<int> projectedPsalmIds)
+{
+    IEnumerable<IGrouping<string, Psalm>> grouped = readablePsalms
+        .GroupBy(p => NormalizeType(p.Type), StringComparer.OrdinalIgnoreCase)
+        .OrderBy(g => g.Key);
+
+    return (from @group in grouped let idsInType = @group.Select(p => p.Id).ToHashSet() let totalReadable = idsInType.Count let actualReads = readingsInRange.Count(r => idsInType.Contains(r.PsalmId)) let plannedReads = plannedInRange.Count(p => idsInType.Contains(p.PsalmId)) let actualCoverage = idsInType.Count(readPsalmIds.Contains) let projectedCoverage = idsInType.Count(projectedPsalmIds.Contains) select new TypeStatsDto(@group.Key, totalReadable, actualReads, plannedReads, actualCoverage, projectedCoverage)).ToList();
+}
+
+static string NormalizeType(string? type) =>
+    string.IsNullOrWhiteSpace(type) ? "Sin tipo" : type.Trim();
+
 await app.RunAsync();
+return;
+
+static bool TryParseRange(string? range, out StatsRange parsed)
+{
+    var value = string.IsNullOrWhiteSpace(range) ? "all" : range.Trim().ToLowerInvariant();
+    parsed = value switch
+    {
+        "all" => StatsRange.All,
+        "last6months" => StatsRange.Last6Months,
+        "year" => StatsRange.Year,
+        _ => StatsRange.All
+    };
+
+    return value is "all" or "last6months" or "year";
+}
 
 public partial class Program
 {
+}
+
+enum StatsRange
+{
+    All,
+    Last6Months,
+    Year
 }
