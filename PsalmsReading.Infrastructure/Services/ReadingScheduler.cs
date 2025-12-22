@@ -1,16 +1,19 @@
 ﻿using PsalmsReading.Application.Interfaces;
 using PsalmsReading.Domain;
 using PsalmsReading.Domain.Entities;
+using PsalmsReading.Infrastructure.Services.ReadingRules;
 
 namespace PsalmsReading.Infrastructure.Services;
 
 public sealed class ReadingScheduler(
     IPsalmRepository psalmRepository,
     IReadingRepository readingRepository,
+    IPlannedReadingRepository plannedRepository,
     Random? random = null)
     : IReadingScheduler
 {
     private static readonly HashSet<int> HolyWeekPreferredIds = [113, 114, 115, 116, 117, 118];
+    private const int RollingTypeWindowDays = 42;
 
     private readonly Random _random = random ?? new Random();
     private readonly IReadOnlyList<IReadingRule> _rules =
@@ -31,33 +34,64 @@ public sealed class ReadingScheduler(
         }
 
         IReadOnlyDictionary<int, Psalm> psalms = (await psalmRepository.GetAllAsync(cancellationToken))
-            .Where(IsAllowedPsalm)
+            .Where(PsalmRules.IsReadable)
             .ToDictionary(p => p.Id);
 
         IReadOnlyDictionary<int, int> readCounts = (await readingRepository.GetAllAsync(cancellationToken))
             .GroupBy(r => r.PsalmId)
             .ToDictionary(g => g.Key, g => g.Count());
 
+        IReadOnlyDictionary<string, TypeBalanceStats> typeBalances = BuildTypeBalances(psalms.Values, readCounts);
+
+        IReadOnlyList<PlannedReading> plannedAll = await plannedRepository.GetAllAsync(cancellationToken);
+        List<TypeHistoryEntry> plannedHistory = BuildPlannedHistory(plannedAll, psalms);
+        Dictionary<string, Dictionary<string, int>> monthTypeCounts = BuildMonthTypeCounts(plannedHistory);
+
         DateOnly endDate = startDate.AddMonths(months);
-        var sundays = EnumerateSundays(startDate, endDate).ToList();
+        List<DateOnly> sundays = EnumerateSundays(startDate, endDate).ToList();
         HashSet<DateOnly> holyWeekSundays = GetHolyWeekSundays(sundays);
         HashSet<DateOnly> thanksgivingSundays = GetLastTwoSundaysOfNovember(sundays);
 
-        var planned = new List<PlannedReading>();
-        var usedPsalmIds = new HashSet<int>();
+        List<PlannedReading> planned = new();
+        HashSet<int> usedPsalmIds = new();
+
+        int plannedIndex = 0;
+        List<TypeHistoryEntry> rollingHistory = new();
 
         foreach (DateOnly sunday in sundays)
         {
-            var available = psalms.Values.Where(p => !usedPsalmIds.Contains(p.Id)).ToList();
+            while (plannedIndex < plannedHistory.Count && plannedHistory[plannedIndex].Date < sunday)
+            {
+                rollingHistory.Add(plannedHistory[plannedIndex]);
+                plannedIndex++;
+            }
+
+            IReadOnlyDictionary<string, int> recentTypeCounts = GetRecentTypeCounts(rollingHistory, sunday);
+            int recentTotalCount = recentTypeCounts.Values.Sum();
+            IReadOnlyList<string> recentTypes = GetRecentTypes(rollingHistory);
+            Dictionary<string, int> monthCounts = GetMonthCounts(monthTypeCounts, sunday);
+
+            List<Psalm> available = psalms.Values.Where(p => !usedPsalmIds.Contains(p.Id)).ToList();
             if (available.Count == 0)
             {
                 break;
             }
 
-            var context = new ScheduleContext(
+            List<Psalm> streakFiltered = FilterByTypeStreak(available, recentTypes);
+            if (streakFiltered.Count == 0)
+            {
+                continue;
+            }
+
+            ScheduleContext context = new(
                 sunday,
-                available,
+                streakFiltered,
                 readCounts,
+                typeBalances,
+                recentTypeCounts,
+                recentTotalCount,
+                monthCounts,
+                recentTypes,
                 holyWeekSundays.Contains(sunday),
                 thanksgivingSundays.Contains(sunday),
                 sunday.Month == 12,
@@ -65,7 +99,7 @@ public sealed class ReadingScheduler(
                 IsFirstSundayOfYear(sunday),
                 _random);
 
-            (Psalm? chosen, var appliedRule) = ApplyRules(context);
+            (Psalm? chosen, string appliedRule) = ApplyRules(context);
 
             if (chosen is null)
             {
@@ -74,13 +108,118 @@ public sealed class ReadingScheduler(
 
             usedPsalmIds.Add(chosen.Id);
             planned.Add(new PlannedReading(Guid.NewGuid(), chosen.Id, sunday, appliedRule));
+            rollingHistory.Add(new TypeHistoryEntry(sunday, NormalizeType(chosen.Type)));
+            IncrementMonthCount(monthTypeCounts, sunday, NormalizeType(chosen.Type));
         }
 
         return planned;
     }
 
-    private static bool IsAllowedPsalm(Psalm psalm) =>
-        PsalmRules.IsReadable(psalm);
+    private static IReadOnlyDictionary<string, TypeBalanceStats> BuildTypeBalances(IEnumerable<Psalm> psalms, IReadOnlyDictionary<int, int> readCounts)
+    {
+        Dictionary<string, TypeBalanceStats> balances = new(StringComparer.OrdinalIgnoreCase);
+        foreach (IGrouping<string, Psalm> group in psalms.GroupBy(p => NormalizeType(p.Type), StringComparer.OrdinalIgnoreCase))
+        {
+            string type = group.Key.Trim();
+            int totalReadable = group.Count();
+            int coverageCount = group.Count(psalm => readCounts.GetValueOrDefault(psalm.Id) > 0);
+            balances[type] = new TypeBalanceStats(type, totalReadable, coverageCount);
+        }
+
+        return balances;
+    }
+
+    private static List<TypeHistoryEntry> BuildPlannedHistory(IReadOnlyList<PlannedReading> planned, IReadOnlyDictionary<int, Psalm> psalms)
+    {
+        return planned
+            .Where(p => psalms.TryGetValue(p.PsalmId, out _))
+            .Select(p => new TypeHistoryEntry(p.ScheduledDate, NormalizeType(psalms[p.PsalmId].Type)))
+            .OrderBy(entry => entry.Date)
+            .ToList();
+    }
+
+    private static Dictionary<string, Dictionary<string, int>> BuildMonthTypeCounts(IEnumerable<TypeHistoryEntry> history)
+    {
+        Dictionary<string, Dictionary<string, int>> result = new(StringComparer.OrdinalIgnoreCase);
+        foreach (TypeHistoryEntry entry in history)
+        {
+            string monthKey = GetMonthKey(entry.Date);
+            if (!result.TryGetValue(monthKey, out Dictionary<string, int>? typeCounts))
+            {
+                typeCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                result[monthKey] = typeCounts;
+            }
+
+            typeCounts[entry.Type] = typeCounts.GetValueOrDefault(entry.Type) + 1;
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, int> GetMonthCounts(
+        Dictionary<string, Dictionary<string, int>> monthTypeCounts,
+        DateOnly date)
+    {
+        string monthKey = GetMonthKey(date);
+        if (monthTypeCounts.TryGetValue(monthKey, out Dictionary<string, int>? counts))
+        {
+            return counts;
+        }
+
+        counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        monthTypeCounts[monthKey] = counts;
+
+        return counts;
+    }
+
+    private static void IncrementMonthCount(
+        Dictionary<string, Dictionary<string, int>> monthTypeCounts,
+        DateOnly date,
+        string type)
+    {
+        Dictionary<string, int> counts = GetMonthCounts(monthTypeCounts, date);
+        counts[type] = counts.GetValueOrDefault(type) + 1;
+    }
+
+    private static IReadOnlyDictionary<string, int> GetRecentTypeCounts(IEnumerable<TypeHistoryEntry> history, DateOnly sunday)
+    {
+        DateOnly windowStart = sunday.AddDays(-RollingTypeWindowDays + 1);
+
+        return history
+            .Where(entry => entry.Date >= windowStart)
+            .GroupBy(entry => entry.Type, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key.Trim(), group => group.Count(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyList<string> GetRecentTypes(IReadOnlyList<TypeHistoryEntry> history)
+    {
+        if (history.Count == 0)
+        {
+            return [];
+        }
+
+        return history.Count == 1 ? new List<string> { history[^1].Type } : new List<string> { history[^2].Type, history[^1].Type };
+    }
+
+    private static List<Psalm> FilterByTypeStreak(IEnumerable<Psalm> candidates, IReadOnlyList<string> recentTypes)
+    {
+        if (recentTypes.Count < 2)
+        {
+            return candidates.ToList();
+        }
+
+        string last = recentTypes[^1];
+        string secondLast = recentTypes[^2];
+
+        if (!string.Equals(last, secondLast, StringComparison.OrdinalIgnoreCase))
+        {
+            return candidates.ToList();
+        }
+
+        return candidates
+            .Where(p => !string.Equals(NormalizeType(p.Type), last, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
 
     private (Psalm? Psalm, string Rule) ApplyRules(ScheduleContext context)
     {
@@ -104,8 +243,7 @@ public sealed class ReadingScheduler(
     private static IEnumerable<DateOnly> EnumerateSundays(DateOnly start, DateOnly end)
     {
         DateOnly current = start;
-        // Move to the first Sunday on or after start
-        var daysUntilSunday = ((int)DayOfWeek.Sunday - (int)current.DayOfWeek + 7) % 7;
+        int daysUntilSunday = ((int)DayOfWeek.Sunday - (int)current.DayOfWeek + 7) % 7;
         current = current.AddDays(daysUntilSunday);
 
         while (current < end)
@@ -123,7 +261,7 @@ public sealed class ReadingScheduler(
 
     private static HashSet<DateOnly> GetHolyWeekSundays(IEnumerable<DateOnly> sundays)
     {
-        var set = new HashSet<DateOnly>();
+        HashSet<DateOnly> set = new();
         IEnumerable<IGrouping<int, DateOnly>> byYear = sundays.GroupBy(s => s.Year);
 
         foreach (IGrouping<int, DateOnly> group in byYear)
@@ -146,12 +284,12 @@ public sealed class ReadingScheduler(
 
     private static HashSet<DateOnly> GetLastTwoSundaysOfNovember(IEnumerable<DateOnly> sundays)
     {
-        var set = new HashSet<DateOnly>();
+        HashSet<DateOnly> set = new();
         IEnumerable<IGrouping<int, DateOnly>> byYear = sundays.Where(s => s.Month == 11).GroupBy(s => s.Year);
 
         foreach (IGrouping<int, DateOnly> group in byYear)
         {
-            var sorted = group.OrderBy(s => s.Day).ToList();
+            List<DateOnly> sorted = group.OrderBy(s => s.Day).ToList();
             if (sorted.Count < 2)
             {
                 continue;
@@ -166,167 +304,28 @@ public sealed class ReadingScheduler(
 
     private static DateOnly CalculateEasterSunday(int year)
     {
-        // Meeus/Jones/Butcher algorithm
-        var a = year % 19;
-        var b = year / 100;
-        var c = year % 100;
-        var d = b / 4;
-        var e = b % 4;
-        var f = (b + 8) / 25;
-        var g = (b - f + 1) / 3;
-        var h = (19 * a + b - d - g + 15) % 30;
-        var i = c / 4;
-        var k = c % 4;
-        var l = (32 + 2 * e + 2 * i - h - k) % 7;
-        var m = (a + 11 * h + 22 * l) / 451;
-        var month = (h + l - 7 * m + 114) / 31;
-        var day = ((h + l - 7 * m + 114) % 31) + 1;
+        int a = year % 19;
+        int b = year / 100;
+        int c = year % 100;
+        int d = b / 4;
+        int e = b % 4;
+        int f = (b + 8) / 25;
+        int g = (b - f + 1) / 3;
+        int h = (19 * a + b - d - g + 15) % 30;
+        int i = c / 4;
+        int k = c % 4;
+        int l = (32 + 2 * e + 2 * i - h - k) % 7;
+        int m = (a + 11 * h + 22 * l) / 451;
+        int month = (h + l - 7 * m + 114) / 31;
+        int day = ((h + l - 7 * m + 114) % 31) + 1;
         return new DateOnly(year, month, day);
     }
 
-    private static Psalm? SelectByTheme(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value, Random random) =>
-        SelectBestByTier(candidates.Where(p => p.Themes.Any(t => MatchesNormalized(t, value))), readCounts, random);
+    private sealed record TypeHistoryEntry(DateOnly Date, string Type);
 
-    private static Psalm? SelectByTypeThemeOrEpigraph(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, string value, Random random)
-    {
-        IEnumerable<Psalm> psalms = candidates as Psalm[] ?? candidates.ToArray();
-        IEnumerable<Psalm> byType = psalms.Where(p => MatchesNormalized(p.Type, value));
-        Psalm? selected = SelectBestByTier(byType, readCounts, random);
-        if (selected is not null)
-        {
-            return selected;
-        }
+    private static string NormalizeType(string? type) =>
+        string.IsNullOrWhiteSpace(type) ? string.Empty : type.Trim();
 
-        IEnumerable<Psalm> byTheme = psalms.Where(p => p.Themes.Any(t => MatchesNormalized(t, value)));
-        selected = SelectBestByTier(byTheme, readCounts, random);
-        if (selected is not null)
-        {
-            return selected;
-        }
-
-        IEnumerable<Psalm> byEpigraph = psalms.Where(p => p.Epigraphs.Any(e => MatchesNormalized(e, value)));
-        return SelectBestByTier(byEpigraph, readCounts, random);
-    }
-
-    private static Psalm? SelectBestByTier(IEnumerable<Psalm> candidates, IReadOnlyDictionary<int, int> readCounts, Random random)
-    {
-        var candidateList = candidates.ToList();
-        if (candidateList.Count == 0)
-        {
-            return null;
-        }
-
-        var groupedByReadCount = candidateList
-            .GroupBy(p => readCounts.GetValueOrDefault(p.Id))
-            .OrderBy(g => g.Key)
-            .ToList();
-
-        foreach (List<Psalm> tierList in groupedByReadCount.Select(tier => tier.ToList()).Where(tierList => tierList.Count != 0))
-        {
-            if (tierList.Count <= 2)
-            {
-                return tierList[0];
-            }
-
-            var randomIndex = random.Next(tierList.Count);
-            return tierList[randomIndex];
-        }
-
-        return null;
-    }
-
-    private static bool MatchesNormalized(string? source, string target)
-    {
-        if (string.IsNullOrWhiteSpace(source))
-        {
-            return false;
-        }
-
-        return string.Equals(Normalize(source), Normalize(target), StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string Normalize(string value)
-    {
-        var normalized = value.Normalize(System.Text.NormalizationForm.FormD);
-        IEnumerable<char> filtered = normalized.Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark);
-        return new string(filtered.ToArray()).ToLowerInvariant().Trim();
-    }
-
-    private sealed record ScheduleContext(
-        DateOnly Sunday,
-        IReadOnlyList<Psalm> AvailablePsalms,
-        IReadOnlyDictionary<int, int> ReadCounts,
-        bool IsHolyWeek,
-        bool IsThanksgivingSunday,
-        bool IsDecember,
-        bool IsFirstSundayOfMonth,
-        bool IsFirstSundayOfYear,
-        Random Random);
-
-    private interface IReadingRule
-    {
-        string Name { get; }
-        bool CanApply(ScheduleContext context);
-        Psalm? Select(ScheduleContext context);
-    }
-
-    private sealed class FirstSundayOfYearRule : IReadingRule
-    {
-        public string Name => "First Sunday new year";
-
-        public bool CanApply(ScheduleContext context) => context.IsFirstSundayOfYear;
-
-        public Psalm? Select(ScheduleContext context) =>
-            SelectByTheme(context.AvailablePsalms, context.ReadCounts, "Días festivos: año nuevo", context.Random);
-    }
-
-    private sealed class ThanksgivingRule : IReadingRule
-    {
-        public string Name => "Thanksgiving";
-
-        public bool CanApply(ScheduleContext context) => context.IsThanksgivingSunday;
-
-        public Psalm? Select(ScheduleContext context) =>
-            SelectByTheme(context.AvailablePsalms, context.ReadCounts, "Días festivos: Agradecimiento", context.Random);
-    }
-
-    private sealed class HolyWeekRule(HashSet<int> preferredIds) : IReadingRule
-    {
-        public string Name => "HolyWeek";
-
-        public bool CanApply(ScheduleContext context) => context.IsHolyWeek;
-
-        public Psalm? Select(ScheduleContext context) =>
-            SelectBestByTier(context.AvailablePsalms.Where(p => preferredIds.Contains(p.Id)), context.ReadCounts, context.Random);
-    }
-
-    private sealed class DecemberRule : IReadingRule
-    {
-        public string Name => "Christmas season";
-
-        public bool CanApply(ScheduleContext context) => context.IsDecember;
-
-        public Psalm? Select(ScheduleContext context) =>
-            SelectByTypeThemeOrEpigraph(context.AvailablePsalms, context.ReadCounts, "mesiánico", context.Random);
-    }
-
-    private sealed class FirstSundayPraiseRule : IReadingRule
-    {
-        public string Name => "First Sunday of worship";
-
-        public bool CanApply(ScheduleContext context) => context.IsFirstSundayOfMonth;
-
-        public Psalm? Select(ScheduleContext context) =>
-            SelectByTypeThemeOrEpigraph(context.AvailablePsalms, context.ReadCounts, "alabanza", context.Random);
-    }
-
-    private sealed class GeneralRule : IReadingRule
-    {
-        public string Name => "General";
-
-        public bool CanApply(ScheduleContext context) => true;
-
-        public Psalm? Select(ScheduleContext context) =>
-            SelectBestByTier(context.AvailablePsalms, context.ReadCounts, context.Random);
-    }
+    private static string GetMonthKey(DateOnly date) =>
+        $"{date.Year:D4}-{date.Month:D2}";
 }
