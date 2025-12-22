@@ -72,6 +72,6 @@ public sealed class Psalm
     public bool HasEpigraph(string epigraph) =>
         Epigraphs.Any(e => string.Equals(e, epigraph, StringComparison.OrdinalIgnoreCase));
 
-    public bool IsExcluded(IReadOnlySet<int> excludedPsalmIds) =>
+    public bool IsExcluded(HashSet<int> excludedPsalmIds) =>
         excludedPsalmIds.Contains(Id);
 }

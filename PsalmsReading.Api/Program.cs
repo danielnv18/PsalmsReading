@@ -351,8 +351,8 @@ static List<TypeStatsDto> BuildTypeStats(
     IReadOnlyList<Psalm> readablePsalms,
     IReadOnlyList<ReadingRecord> readingsInRange,
     IReadOnlyList<PlannedReading> plannedInRange,
-    IReadOnlySet<int> readPsalmIds,
-    IReadOnlySet<int> projectedPsalmIds)
+    HashSet<int> readPsalmIds,
+    HashSet<int> projectedPsalmIds)
 {
     IEnumerable<IGrouping<string, Psalm>> grouped = readablePsalms
         .GroupBy(p => NormalizeType(p.Type), StringComparer.OrdinalIgnoreCase)
