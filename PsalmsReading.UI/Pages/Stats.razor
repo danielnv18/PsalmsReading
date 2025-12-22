@@ -1,0 +1,278 @@
+﻿@page "/stats"
+@inject ApiClient ApiClient
+
+<PageTitle>Stats</PageTitle>
+
+<h1>Reading stats</h1>
+<p class="text-muted">
+    Coverage uses all-time reads. Range filters affect read totals only. Projection uses all planned reads.
+</p>
+
+<div class="row g-3 align-items-end mb-4">
+    <div class="col-12 col-md-4">
+        <label class="form-label">Range</label>
+        <select class="form-select" value="@_selectedRange" @onchange="OnRangeChanged">
+            <option value="all">All time</option>
+            <option value="last6months">Last 6 months</option>
+            <option value="year">Year</option>
+        </select>
+    </div>
+    @if (_selectedRange == "year")
+    {
+        <div class="col-12 col-md-3">
+            <label class="form-label">Year</label>
+            <select class="form-select" value="@_selectedYear" @onchange="OnYearChanged">
+                @foreach (int year in _years)
+                {
+                    <option value="@year">@year</option>
+                }
+            </select>
+        </div>
+    }
+</div>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_isLoading)
+{
+    <p><em>Loading stats...</em></p>
+}
+else if (_stats is null)
+{
+    <p>No stats available.</p>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-uppercase text-muted small">Readable psalms</div>
+                    <div class="display-6">@_stats.TotalReadablePsalms</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-uppercase text-muted small">Coverage (all time)</div>
+                    <div class="display-6">@_stats.ReadablePsalmsRead</div>
+                    <div class="text-muted">@GetPercent(_stats.ReadablePsalmsRead, _stats.TotalReadablePsalms)% of readable</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-uppercase text-muted small">Projected coverage</div>
+                    <div class="display-6">@_stats.ReadablePsalmsProjected</div>
+                    <div class="text-muted">@GetPercent(_stats.ReadablePsalmsProjected, _stats.TotalReadablePsalms)% of readable</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-uppercase text-muted small">Actual reads in range</div>
+                    <div class="display-6">@_stats.ActualReadsInRange</div>
+                    <div class="text-muted">@GetRangeDescription()</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="text-uppercase text-muted small">Planned reads in range</div>
+                    <div class="display-6">@_stats.PlannedReadsInRange</div>
+                    <div class="text-muted">@GetRangeDescription()</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-end mb-2">
+        <h2 class="h4 mb-0">By type</h2>
+        <span class="text-muted small">Counts are range-based; coverage is all-time.</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th style="width:14%">Readable</th>
+                    <th style="width:22%">Coverage (actual)</th>
+                    <th style="width:22%">Coverage (projected)</th>
+                    <th style="width:20%">Reads in range</th>
+                    <th style="width:20%">Planned in range</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{
+                    int maxTypeReads = GetMaxTypeReads();
+                }
+                @foreach (TypeStatsDto type in _stats.Types)
+                {
+                    int actualCoveragePercent = GetPercent(type.ActualCoverageCount, type.TotalReadablePsalms);
+                    int projectedCoveragePercent = GetPercent(type.ProjectedCoverageCount, type.TotalReadablePsalms);
+                    int actualReadsPercent = GetPercent(type.ActualReadsInRange, maxTypeReads);
+                    int plannedReadsPercent = GetPercent(type.PlannedReadsInRange, maxTypeReads);
+
+                    <tr>
+                        <td>
+                            <span class="type-badge @GetTypeClass(type.Type)">@type.Type</span>
+                        </td>
+                        <td>@type.TotalReadablePsalms</td>
+                        <td>
+                            <div class="d-flex justify-content-between small text-muted mb-1">
+                                <span>@type.ActualCoverageCount / @type.TotalReadablePsalms</span>
+                                <span>@actualCoveragePercent%</span>
+                            </div>
+                            <div class="progress stats-progress">
+                                <div class="progress-bar bg-primary" role="progressbar" style="width:@actualCoveragePercent%"></div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex justify-content-between small text-muted mb-1">
+                                <span>@type.ProjectedCoverageCount / @type.TotalReadablePsalms</span>
+                                <span>@projectedCoveragePercent%</span>
+                            </div>
+                            <div class="progress stats-progress">
+                                <div class="progress-bar bg-success" role="progressbar" style="width:@projectedCoveragePercent%"></div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex justify-content-between small text-muted mb-1">
+                                <span>@type.ActualReadsInRange</span>
+                                <span>@actualReadsPercent%</span>
+                            </div>
+                            <div class="stats-bar">
+                                <div class="stats-bar-fill stats-bar-fill--actual" style="width:@actualReadsPercent%"></div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex justify-content-between small text-muted mb-1">
+                                <span>@type.PlannedReadsInRange</span>
+                                <span>@plannedReadsPercent%</span>
+                            </div>
+                            <div class="stats-bar">
+                                <div class="stats-bar-fill stats-bar-fill--planned" style="width:@plannedReadsPercent%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private StatsDto? _stats;
+    private bool _isLoading = true;
+    private string? _error;
+    private string _selectedRange = "all";
+    private int _selectedYear = DateTime.Today.Year;
+    private readonly List<int> _years = Enumerable.Range(0, 10).Select(offset => DateTime.Today.Year - offset).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _error = null;
+            _isLoading = true;
+            int? year = _selectedRange == "year" ? _selectedYear : null;
+            _stats = await ApiClient.GetStatsAsync(_selectedRange, year);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnRangeChanged(ChangeEventArgs args)
+    {
+        string? value = args.Value?.ToString();
+        _selectedRange = string.IsNullOrWhiteSpace(value) ? "all" : value;
+        await LoadAsync();
+    }
+
+    private async Task OnYearChanged(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out int year))
+        {
+            _selectedYear = year;
+        }
+
+        await LoadAsync();
+    }
+
+    private string GetRangeDescription()
+    {
+        if (_stats is null)
+        {
+            return string.Empty;
+        }
+
+        if (_stats.Range == "all")
+        {
+            return "All-time totals.";
+        }
+
+        if (_stats.RangeStart.HasValue && _stats.RangeEnd.HasValue)
+        {
+            return $"Range totals: {_stats.RangeStart:yyyy-MM-dd} to {_stats.RangeEnd:yyyy-MM-dd}.";
+        }
+
+        return "Range totals.";
+    }
+
+    private int GetMaxTypeReads()
+    {
+        if (_stats is null || _stats.Types.Count == 0)
+        {
+            return 0;
+        }
+
+        int max = _stats.Types.Max(type => Math.Max(type.ActualReadsInRange, type.PlannedReadsInRange));
+        return max == 0 ? 1 : max;
+    }
+
+    private static int GetPercent(int value, int total)
+    {
+        if (total <= 0)
+        {
+            return 0;
+        }
+
+        double percent = (double)value / total * 100;
+        return (int)Math.Round(percent, MidpointRounding.AwayFromZero);
+    }
+
+    private static string GetTypeClass(string type)
+    {
+        string key = type.Trim().ToLowerInvariant();
+        return key switch
+        {
+            "lamento" => "type-lamento",
+            "alabanza" => "type-alabanza",
+            "himno" => "type-himno",
+            "realeza" => "type-realeza",
+            "sabiduria" => "type-sabiduria",
+            "sabiduría" => "type-sabiduria",
+            "agradecimiento" => "type-agradecimiento",
+            "confianza" => "type-confianza",
+            "sin tipo" => "type-unknown",
+            _ => "type-unknown"
+        };
+    }
+}
