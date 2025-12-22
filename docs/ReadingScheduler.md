@@ -18,7 +18,8 @@ The scheduler generates Sunday readings by running a small pipeline of rule obje
 - Type balancing uses coverage per type (distinct psalms read at least once vs total readable per type).
 - No more than two of the same type are allowed in a row.
 - For `General`, recent usage within the rolling 6-week window reduces a type's priority but does not hard-exclude it.
-- `General` avoids picking any type that already appears twice in the current calendar month. If a type has not appeared in the month and still has at least ~50% of its readable psalms unread, it is preferred.
+- `General` uses per-type monthly caps (types with more psalms can appear twice; smaller types are capped at once per month).
+- `General` prefers selecting `alabanza` or `lamento` if the current month has not yet included them.
 - Existing planned readings are included when calculating streaks and rolling type counts.
 - Theme/type/epigraph matches are normalized (case/accent-insensitive, trimmed).
 

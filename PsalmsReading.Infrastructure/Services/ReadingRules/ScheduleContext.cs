@@ -7,6 +7,7 @@ public sealed record ScheduleContext(
     IReadOnlyList<Psalm> AvailablePsalms,
     IReadOnlyDictionary<int, int> ReadCounts,
     IReadOnlyDictionary<string, TypeBalanceStats> TypeBalances,
+    int MaxTypeTotalReadable,
     IReadOnlyDictionary<string, int> RecentTypeCounts,
     int RecentTotalCount,
     IReadOnlyDictionary<string, int> MonthTypeCounts,

@@ -133,10 +133,107 @@
     </div>
 </div>
 
+@if (_plans.Count > 0)
+{
+    <div class="card shadow-sm mt-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="card-title mb-0">Projected stats if saved</h5>
+                <span class="text-muted">@_plans.Count plan(s) in preview</span>
+            </div>
+            @if (_previewStats.Count == 0)
+            {
+                <p class="text-muted">No stats available.</p>
+            }
+            else
+            {
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-4">
+                        <div class="card h-100 border-0 bg-light">
+                            <div class="card-body">
+                                <div class="text-uppercase text-muted small">Readable psalms</div>
+                                <div class="display-6">@_previewTotals.TotalReadable</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="card h-100 border-0 bg-light">
+                            <div class="card-body">
+                                <div class="text-uppercase text-muted small">Coverage (actual)</div>
+                                <div class="display-6">@_previewTotals.ActualCoverage</div>
+                                <div class="text-muted">@GetPercent(_previewTotals.ActualCoverage, _previewTotals.TotalReadable)% of readable</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="card h-100 border-0 bg-light">
+                            <div class="card-body">
+                                <div class="text-uppercase text-muted small">Coverage if saved</div>
+                                <div class="display-6">@_previewTotals.ProjectedCoverage</div>
+                                <div class="text-muted">@GetPercent(_previewTotals.ProjectedCoverage, _previewTotals.TotalReadable)% of readable</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th style="width:14%">Readable</th>
+                                <th style="width:24%">Coverage (actual)</th>
+                                <th style="width:24%">Coverage if saved</th>
+                                <th style="width:20%">Added by preview</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (TypePreviewStats stat in _previewStats)
+                            {
+                                int actualPercent = GetPercent(stat.ActualCoverageCount, stat.TotalReadable);
+                                int projectedPercent = GetPercent(stat.ProjectedCoverageCount, stat.TotalReadable);
+                                <tr>
+                                    <td>
+                                        <span class="type-badge @GetTypeClass(stat.Type)">@stat.Type</span>
+                                    </td>
+                                    <td>@stat.TotalReadable</td>
+                                    <td>
+                                        <div class="d-flex justify-content-between small text-muted mb-1">
+                                            <span>@stat.ActualCoverageCount / @stat.TotalReadable</span>
+                                            <span>@actualPercent%</span>
+                                        </div>
+                                        <div class="progress stats-progress">
+                                            <div class="progress-bar bg-primary" role="progressbar" style="width:@actualPercent%"></div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex justify-content-between small text-muted mb-1">
+                                            <span>@stat.ProjectedCoverageCount / @stat.TotalReadable</span>
+                                            <span>@projectedPercent%</span>
+                                        </div>
+                                        <div class="progress stats-progress">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width:@projectedPercent%"></div>
+                                        </div>
+                                    </td>
+                                    <td>@stat.PreviewAddedCount</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
 @code {
     private readonly int[] _allowedMonths = [1, 2, 3, 6, 12];
     private List<PsalmDto> _psalms = [];
     private List<PlannedReadingDto> _plans = [];
+    private List<ReadingRecordDto> _readings = [];
+    private List<PlannedReadingDto> _existingPlans = [];
+    private List<TypePreviewStats> _previewStats = [];
+    private PreviewTotals _previewTotals = new(0, 0, 0);
     private Dictionary<DateOnly, PlannedReadingDto> _plansByDate = [];
     private DateOnly _startDate = DateOnly.FromDateTime(DateTime.Today);
     private int _months = 1;
@@ -148,6 +245,8 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadPsalms();
+        await LoadStatsData();
+        BuildPreviewStats();
     }
 
     private async Task LoadPsalms()
@@ -155,6 +254,19 @@
         try
         {
             _psalms = (await ApiClient.GetPsalmsAsync()).OrderBy(p => p.Id).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task LoadStatsData()
+    {
+        try
+        {
+            _readings = (await ApiClient.GetReadingsAsync()).ToList();
+            _existingPlans = (await ApiClient.GetPlannedReadingsAsync()).ToList();
         }
         catch (Exception ex)
         {
@@ -190,6 +302,13 @@
             ? (await ApiClient.GenerateScheduleAsync(request)).ToList()
             : (await ApiClient.PreviewScheduleAsync(request)).ToList();
             _plansByDate = BuildPlansByDate(_plans);
+
+            if (save)
+            {
+                await LoadStatsData();
+            }
+
+            BuildPreviewStats();
 
             if (includeIcs)
             {
@@ -323,7 +442,88 @@
         return $"{monthName} {monthStart.Year}";
     }
 
+    private void BuildPreviewStats()
+    {
+        if (_psalms.Count == 0)
+        {
+            _previewStats = [];
+            _previewTotals = new PreviewTotals(0, 0, 0);
+            return;
+        }
+
+        List<PsalmDto> readablePsalms = _psalms.Where(IsReadablePsalm).ToList();
+        Dictionary<int, PsalmDto> readableById = readablePsalms.ToDictionary(p => p.Id);
+
+        HashSet<int> actualReadIds = _readings
+            .Where(r => readableById.ContainsKey(r.PsalmId))
+            .Select(r => r.PsalmId)
+            .ToHashSet();
+
+        HashSet<int> plannedIds = _existingPlans
+            .Where(p => readableById.ContainsKey(p.PsalmId))
+            .Select(p => p.PsalmId)
+            .ToHashSet();
+
+        HashSet<int> previewIds = _plans
+            .Where(p => readableById.ContainsKey(p.PsalmId))
+            .Select(p => p.PsalmId)
+            .ToHashSet();
+
+        HashSet<int> baselineProjected = new(actualReadIds);
+        baselineProjected.UnionWith(plannedIds);
+
+        HashSet<int> projected = new(baselineProjected);
+        projected.UnionWith(previewIds);
+
+        _previewTotals = new PreviewTotals(
+            readablePsalms.Count,
+            actualReadIds.Count,
+            projected.Count);
+
+        List<TypePreviewStats> stats = new();
+        foreach (IGrouping<string, PsalmDto> group in readablePsalms.GroupBy(p => NormalizeType(p.Type), StringComparer.OrdinalIgnoreCase))
+        {
+            List<int> idsInType = group.Select(p => p.Id).ToList();
+            int totalReadable = idsInType.Count;
+            int actualCoverage = idsInType.Count(id => actualReadIds.Contains(id));
+            int projectedCoverage = idsInType.Count(id => projected.Contains(id));
+            int previewAdded = idsInType.Count(id => previewIds.Contains(id) && !baselineProjected.Contains(id));
+
+            stats.Add(new TypePreviewStats(group.Key, totalReadable, actualCoverage, projectedCoverage, previewAdded));
+        }
+
+        _previewStats = stats.OrderBy(s => s.Type, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private static bool IsReadablePsalm(PsalmDto psalm) =>
+        psalm.TotalVerses <= MaxReadableVerses && !ExcludedPsalmIds.Contains(psalm.Id);
+
+    private static string NormalizeType(string? type) =>
+        string.IsNullOrWhiteSpace(type) ? string.Empty : type.Trim();
+
+    private static int GetPercent(int value, int total)
+    {
+        if (total <= 0)
+        {
+            return 0;
+        }
+
+        double percent = (double)value / total * 100;
+        return (int)Math.Round(percent, MidpointRounding.AwayFromZero);
+    }
+
     [Inject] private IJSRuntime JsRuntime { get; set; } = null!;
 
     private static readonly System.Globalization.CultureInfo SpanishCulture = new("es-ES");
+    private static readonly HashSet<int> ExcludedPsalmIds = new() { 35, 55, 59, 69, 79, 109, 137 };
+    private const int MaxReadableVerses = 30;
+
+    private sealed record TypePreviewStats(
+        string Type,
+        int TotalReadable,
+        int ActualCoverageCount,
+        int ProjectedCoverageCount,
+        int PreviewAddedCount);
+
+    private sealed record PreviewTotals(int TotalReadable, int ActualCoverage, int ProjectedCoverage);
 }

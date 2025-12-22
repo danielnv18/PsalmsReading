@@ -42,6 +42,7 @@ public sealed class ReadingScheduler(
             .ToDictionary(g => g.Key, g => g.Count());
 
         IReadOnlyDictionary<string, TypeBalanceStats> typeBalances = BuildTypeBalances(psalms.Values, readCounts);
+        int maxTypeTotalReadable = typeBalances.Values.Select(stats => stats.TotalReadable).DefaultIfEmpty(0).Max();
 
         IReadOnlyList<PlannedReading> plannedAll = await plannedRepository.GetAllAsync(cancellationToken);
         List<TypeHistoryEntry> plannedHistory = BuildPlannedHistory(plannedAll, psalms);
@@ -77,17 +78,12 @@ public sealed class ReadingScheduler(
                 break;
             }
 
-            List<Psalm> streakFiltered = FilterByTypeStreak(available, recentTypes);
-            if (streakFiltered.Count == 0)
-            {
-                continue;
-            }
-
             ScheduleContext context = new(
                 sunday,
-                streakFiltered,
+                available,
                 readCounts,
                 typeBalances,
+                maxTypeTotalReadable,
                 recentTypeCounts,
                 recentTotalCount,
                 monthCounts,
@@ -199,26 +195,6 @@ public sealed class ReadingScheduler(
         }
 
         return history.Count == 1 ? new List<string> { history[^1].Type } : new List<string> { history[^2].Type, history[^1].Type };
-    }
-
-    private static List<Psalm> FilterByTypeStreak(IEnumerable<Psalm> candidates, IReadOnlyList<string> recentTypes)
-    {
-        if (recentTypes.Count < 2)
-        {
-            return candidates.ToList();
-        }
-
-        string last = recentTypes[^1];
-        string secondLast = recentTypes[^2];
-
-        if (!string.Equals(last, secondLast, StringComparison.OrdinalIgnoreCase))
-        {
-            return candidates.ToList();
-        }
-
-        return candidates
-            .Where(p => !string.Equals(NormalizeType(p.Type), last, StringComparison.OrdinalIgnoreCase))
-            .ToList();
     }
 
     private (Psalm? Psalm, string Rule) ApplyRules(ScheduleContext context)

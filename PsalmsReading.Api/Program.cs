@@ -165,6 +165,12 @@ api.MapDelete("/readings/{id:guid}", async (Guid id, IReadingRepository reposito
     return success ? Results.NoContent() : Results.NotFound();
 });
 
+api.MapGet("/planned", async (IPlannedReadingRepository repository, CancellationToken cancellationToken) =>
+{
+    IReadOnlyList<PlannedReading> planned = await repository.GetAllAsync(cancellationToken);
+    return Results.Ok(planned.Select(MapPlannedReading));
+});
+
 api.MapGet("/stats", async (
     string? range,
     int? year,

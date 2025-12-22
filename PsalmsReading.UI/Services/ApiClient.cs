@@ -19,7 +19,7 @@ public sealed class ApiClient
 
     public async Task<IReadOnlyList<PsalmDto>> GetPsalmsAsync(CancellationToken cancellationToken = default)
     {
-        var result = await _httpClient.GetFromJsonAsync<List<PsalmDto>>("psalms", _jsonOptions, cancellationToken);
+        List<PsalmDto>? result = await _httpClient.GetFromJsonAsync<List<PsalmDto>>("psalms", _jsonOptions, cancellationToken);
         return result ?? [];
     }
 
@@ -31,62 +31,68 @@ public sealed class ApiClient
             uri += $"?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}";
         }
 
-        var result = await _httpClient.GetFromJsonAsync<List<ReadingRecordDto>>(uri, _jsonOptions, cancellationToken);
+        List<ReadingRecordDto>? result = await _httpClient.GetFromJsonAsync<List<ReadingRecordDto>>(uri, _jsonOptions, cancellationToken);
         return result ?? [];
     }
 
     public async Task CreateReadingAsync(CreateReadingRequest request, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PostAsJsonAsync("readings", request, _jsonOptions, cancellationToken);
+        HttpResponseMessage response = await _httpClient.PostAsJsonAsync("readings", request, _jsonOptions, cancellationToken);
         await EnsureSuccess(response);
     }
 
     public async Task UpdateReadingAsync(Guid id, UpdateReadingRequest request, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"readings/{id}", request, _jsonOptions, cancellationToken);
+        HttpResponseMessage response = await _httpClient.PutAsJsonAsync($"readings/{id}", request, _jsonOptions, cancellationToken);
         await EnsureSuccess(response);
     }
 
     public async Task DeleteReadingAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.DeleteAsync($"readings/{id}", cancellationToken);
+        HttpResponseMessage response = await _httpClient.DeleteAsync($"readings/{id}", cancellationToken);
         await EnsureSuccess(response);
     }
 
     public async Task<IReadOnlyList<PlannedReadingDto>> GenerateScheduleAsync(ScheduleRequest request, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PostAsJsonAsync("schedule", request, _jsonOptions, cancellationToken);
+        HttpResponseMessage response = await _httpClient.PostAsJsonAsync("schedule", request, _jsonOptions, cancellationToken);
         await EnsureSuccess(response);
 
-        var result = await response.Content.ReadFromJsonAsync<List<PlannedReadingDto>>(_jsonOptions, cancellationToken);
+        List<PlannedReadingDto>? result = await response.Content.ReadFromJsonAsync<List<PlannedReadingDto>>(_jsonOptions, cancellationToken);
         return result ?? [];
     }
 
     public async Task<IReadOnlyList<PlannedReadingDto>> PreviewScheduleAsync(ScheduleRequest request, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PostAsJsonAsync("schedule/preview", request, _jsonOptions, cancellationToken);
+        HttpResponseMessage response = await _httpClient.PostAsJsonAsync("schedule/preview", request, _jsonOptions, cancellationToken);
         await EnsureSuccess(response);
 
-        var result = await response.Content.ReadFromJsonAsync<List<PlannedReadingDto>>(_jsonOptions, cancellationToken);
+        List<PlannedReadingDto>? result = await response.Content.ReadFromJsonAsync<List<PlannedReadingDto>>(_jsonOptions, cancellationToken);
+        return result ?? [];
+    }
+
+    public async Task<IReadOnlyList<PlannedReadingDto>> GetPlannedReadingsAsync(CancellationToken cancellationToken = default)
+    {
+        List<PlannedReadingDto>? result = await _httpClient.GetFromJsonAsync<List<PlannedReadingDto>>("planned", _jsonOptions, cancellationToken);
         return result ?? [];
     }
 
     public async Task<string> GenerateScheduleIcsAsync(ScheduleRequest request, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PostAsJsonAsync("schedule/ics", request, _jsonOptions, cancellationToken);
+        HttpResponseMessage response = await _httpClient.PostAsJsonAsync("schedule/ics", request, _jsonOptions, cancellationToken);
         await EnsureSuccess(response);
         return await response.Content.ReadAsStringAsync(cancellationToken);
     }
 
     public async Task<StatsDto> GetStatsAsync(string range, int? year = default, CancellationToken cancellationToken = default)
     {
-        string uri = $"stats?range={Uri.EscapeDataString(range)}";
+        var uri = $"stats?range={Uri.EscapeDataString(range)}";
         if (year.HasValue)
         {
             uri += $"&year={year.Value}";
         }
 
-        var result = await _httpClient.GetFromJsonAsync<StatsDto>(uri, _jsonOptions, cancellationToken);
+        StatsDto? result = await _httpClient.GetFromJsonAsync<StatsDto>(uri, _jsonOptions, cancellationToken);
         return result ?? new StatsDto("all", null, null, 0, 0, 0, 0, 0, Array.Empty<TypeStatsDto>());
     }
 

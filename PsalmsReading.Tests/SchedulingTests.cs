@@ -354,7 +354,7 @@ public class SchedulingTests
     }
 
     [Fact]
-    public async Task Avoids_Three_In_A_Row_By_Type()
+    public async Task Avoids_Same_Type_In_A_Row()
     {
         var psalms = new List<Psalm>
         {
@@ -369,7 +369,7 @@ public class SchedulingTests
             new(Guid.NewGuid(), 2, new DateOnly(2025, 2, 9), "General")
         };
 
-        var scheduler = new ReadingScheduler(
+        ReadingScheduler scheduler = new(
             new FakePsalmRepository(psalms),
             new FakeReadingRepository(),
             new FakePlannedReadingRepository(planned),
@@ -432,6 +432,32 @@ public class SchedulingTests
         IReadOnlyList<PlannedReading> plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 5, 18), 1);
 
         Assert.Contains(plans, p => p.ScheduledDate == new DateOnly(2025, 5, 18) && p.PsalmId == 3);
+    }
+
+    [Fact]
+    public async Task GeneralRule_Prioritizes_Alabanza_Or_Lamento_When_Missing_In_Month()
+    {
+        List<Psalm> psalms = new()
+        {
+            new(1, "Lamento A", 10, "lamento", null, new List<string>()),
+            new(2, "Alabanza A", 10, "alabanza", null, new List<string>()),
+            new(3, "Sabiduria A", 10, "sabiduria", null, new List<string>())
+        };
+
+        List<PlannedReading> planned = new()
+        {
+            new(Guid.NewGuid(), 3, new DateOnly(2025, 2, 2), "General")
+        };
+
+        var scheduler = new ReadingScheduler(
+            new FakePsalmRepository(psalms),
+            new FakeReadingRepository(),
+            new FakePlannedReadingRepository(planned),
+            new Random(42));
+
+        IReadOnlyList<PlannedReading> plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 2, 10), 1);
+
+        Assert.Contains(plans, p => p.ScheduledDate == new DateOnly(2025, 2, 16) && (p.PsalmId == 1 || p.PsalmId == 2));
     }
 
     private sealed class FakePsalmRepository : IPsalmRepository

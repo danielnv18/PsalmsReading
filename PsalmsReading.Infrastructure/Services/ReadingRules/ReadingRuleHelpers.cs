@@ -59,6 +59,7 @@ public static class ReadingRuleHelpers
         IEnumerable<Psalm> candidates,
         IReadOnlyDictionary<int, int> readCounts,
         IReadOnlyDictionary<string, TypeBalanceStats> typeBalances,
+        int maxTypeTotalReadable,
         IReadOnlyDictionary<string, int> recentTypeCounts,
         int recentTotalCount,
         Random random)
@@ -74,12 +75,12 @@ public static class ReadingRuleHelpers
             .ToList();
 
         double maxScore = byType
-            .Select(group => GetTypeScore(group.Key, typeBalances, recentTypeCounts, recentTotalCount))
+            .Select(group => GetTypeScore(group.Key, typeBalances, maxTypeTotalReadable, recentTypeCounts, recentTotalCount))
             .DefaultIfEmpty(0d)
             .Max();
 
         List<IGrouping<string?, Psalm>> topGroups = byType
-            .Where(group => Math.Abs(GetTypeScore(group.Key, typeBalances, recentTypeCounts, recentTotalCount) - maxScore) < 0.0001d)
+            .Where(group => Math.Abs(GetTypeScore(group.Key, typeBalances, maxTypeTotalReadable, recentTypeCounts, recentTotalCount) - maxScore) < 0.0001d)
             .ToList();
 
         IGrouping<string?, Psalm> selectedGroup = topGroups.Count <= 1
@@ -92,6 +93,7 @@ public static class ReadingRuleHelpers
     private static double GetTypeScore(
         string? type,
         IReadOnlyDictionary<string, TypeBalanceStats> typeBalances,
+        int maxTypeTotalReadable,
         IReadOnlyDictionary<string, int> recentTypeCounts,
         int recentTotalCount)
     {
@@ -104,6 +106,11 @@ public static class ReadingRuleHelpers
         double remainingRatio = typeBalances.TryGetValue(key, out TypeBalanceStats? stats)
             ? stats.RemainingRatio
             : 0d;
+        double sizeWeight = 1d;
+        if (stats is not null && maxTypeTotalReadable > 0)
+        {
+            sizeWeight = (double)stats.TotalReadable / maxTypeTotalReadable;
+        }
         double recentRatio = 0d;
 
         if (recentTotalCount > 0 && recentTypeCounts.TryGetValue(key, out int recentCount))
@@ -111,7 +118,7 @@ public static class ReadingRuleHelpers
             recentRatio = (double)recentCount / recentTotalCount;
         }
 
-        return remainingRatio - recentRatio;
+        return (remainingRatio * sizeWeight) - recentRatio;
     }
 
     private static bool MatchesNormalized(string? source, string target) => !string.IsNullOrWhiteSpace(source) && string.Equals(Normalize(source), Normalize(target), StringComparison.OrdinalIgnoreCase);
