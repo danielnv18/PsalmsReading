@@ -5,9 +5,9 @@ public sealed class PlannedReading
     public Guid Id { get; }
     public int PsalmId { get; }
     public DateOnly ScheduledDate { get; }
-    public string RuleApplied { get; }
+    public string? RuleApplied { get; }
 
-    public PlannedReading(Guid id, int psalmId, DateOnly scheduledDate, string ruleApplied)
+    public PlannedReading(Guid id, int psalmId, DateOnly scheduledDate, string? ruleApplied)
     {
         if (psalmId <= 0)
         {
@@ -19,14 +19,9 @@ public sealed class PlannedReading
             throw new ArgumentException("Scheduled date is required.", nameof(scheduledDate));
         }
 
-        if (string.IsNullOrWhiteSpace(ruleApplied))
-        {
-            throw new ArgumentException("Rule applied is required.", nameof(ruleApplied));
-        }
-
         Id = id == Guid.Empty ? Guid.NewGuid() : id;
         PsalmId = psalmId;
         ScheduledDate = scheduledDate;
-        RuleApplied = ruleApplied.Trim();
+        RuleApplied = string.IsNullOrWhiteSpace(ruleApplied) ? null : ruleApplied.Trim();
     }
 }

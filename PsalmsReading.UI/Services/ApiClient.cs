@@ -23,12 +23,23 @@ public sealed class ApiClient
         return result ?? [];
     }
 
-    public async Task<IReadOnlyList<ReadingRecordDto>> GetReadingsAsync(DateOnly? from = default, DateOnly? to = default, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ReadingRecordDto>> GetReadingsAsync(
+        DateOnly? from = default,
+        DateOnly? to = default,
+        CancellationToken cancellationToken = default)
     {
-        var uri = "readings";
+        string uri = "readings";
+        List<string> queryParts = new();
+
         if (from.HasValue && to.HasValue)
         {
-            uri += $"?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}";
+            queryParts.Add($"from={from:yyyy-MM-dd}");
+            queryParts.Add($"to={to:yyyy-MM-dd}");
+        }
+
+        if (queryParts.Count > 0)
+        {
+            uri += $"?{string.Join("&", queryParts)}";
         }
 
         List<ReadingRecordDto>? result = await _httpClient.GetFromJsonAsync<List<ReadingRecordDto>>(uri, _jsonOptions, cancellationToken);
@@ -68,12 +79,6 @@ public sealed class ApiClient
         await EnsureSuccess(response);
 
         List<PlannedReadingDto>? result = await response.Content.ReadFromJsonAsync<List<PlannedReadingDto>>(_jsonOptions, cancellationToken);
-        return result ?? [];
-    }
-
-    public async Task<IReadOnlyList<PlannedReadingDto>> GetPlannedReadingsAsync(CancellationToken cancellationToken = default)
-    {
-        List<PlannedReadingDto>? result = await _httpClient.GetFromJsonAsync<List<PlannedReadingDto>>("planned", _jsonOptions, cancellationToken);
         return result ?? [];
     }
 

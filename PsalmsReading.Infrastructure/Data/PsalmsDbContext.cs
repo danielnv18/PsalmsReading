@@ -12,7 +12,6 @@ public sealed class PsalmsDbContext : DbContext
 
     public DbSet<Psalm> Psalms => Set<Psalm>();
     public DbSet<ReadingRecord> ReadingRecords => Set<ReadingRecord>();
-    public DbSet<PlannedReading> PlannedReadings => Set<PlannedReading>();
     public DbSet<PsalmEpigraph> PsalmEpigraphs => Set<PsalmEpigraph>();
     public DbSet<PsalmTheme> PsalmThemes => Set<PsalmTheme>();
     public DbSet<Theme> Themes => Set<Theme>();

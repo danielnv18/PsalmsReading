@@ -8,7 +8,6 @@ namespace PsalmsReading.Infrastructure.Services;
 public sealed class ReadingScheduler(
     IPsalmRepository psalmRepository,
     IReadingRepository readingRepository,
-    IPlannedReadingRepository plannedRepository,
     Random? random = null)
     : IReadingScheduler
 {
@@ -37,15 +36,17 @@ public sealed class ReadingScheduler(
             .Where(PsalmRules.IsReadable)
             .ToDictionary(p => p.Id);
 
-        IReadOnlyDictionary<int, int> readCounts = (await readingRepository.GetAllAsync(cancellationToken))
+        IReadOnlyList<ReadingRecord> allReadings = await readingRepository.GetAllAsync(cancellationToken);
+
+        IReadOnlyDictionary<int, int> readCounts = allReadings
+            .Where(r => r.DateRead < startDate)
             .GroupBy(r => r.PsalmId)
             .ToDictionary(g => g.Key, g => g.Count());
 
         IReadOnlyDictionary<string, TypeBalanceStats> typeBalances = BuildTypeBalances(psalms.Values, readCounts);
         int maxTypeTotalReadable = typeBalances.Values.Select(stats => stats.TotalReadable).DefaultIfEmpty(0).Max();
 
-        IReadOnlyList<PlannedReading> plannedAll = await plannedRepository.GetAllAsync(cancellationToken);
-        List<TypeHistoryEntry> plannedHistory = BuildPlannedHistory(plannedAll, psalms);
+        List<TypeHistoryEntry> plannedHistory = BuildPlannedHistory(allReadings, psalms);
         Dictionary<string, Dictionary<string, int>> monthTypeCounts = BuildMonthTypeCounts(plannedHistory);
 
         DateOnly endDate = startDate.AddMonths(months);
@@ -125,11 +126,11 @@ public sealed class ReadingScheduler(
         return balances;
     }
 
-    private static List<TypeHistoryEntry> BuildPlannedHistory(IReadOnlyList<PlannedReading> planned, IReadOnlyDictionary<int, Psalm> psalms)
+    private static List<TypeHistoryEntry> BuildPlannedHistory(IReadOnlyList<ReadingRecord> readings, IReadOnlyDictionary<int, Psalm> psalms)
     {
-        return planned
-            .Where(p => psalms.TryGetValue(p.PsalmId, out _))
-            .Select(p => new TypeHistoryEntry(p.ScheduledDate, NormalizeType(psalms[p.PsalmId].Type)))
+        return readings
+            .Where(r => psalms.TryGetValue(r.PsalmId, out _))
+            .Select(r => new TypeHistoryEntry(r.DateRead, NormalizeType(psalms[r.PsalmId].Type)))
             .OrderBy(entry => entry.Date)
             .ToList();
     }

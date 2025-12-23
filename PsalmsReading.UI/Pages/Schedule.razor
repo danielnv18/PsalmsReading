@@ -113,7 +113,14 @@
                                                 <div class="d-flex flex-column gap-1">
                                                     <div class="fw-semibold">Salmo @plan.PsalmId - @GetPsalmTitle(plan.PsalmId)</div>
                                                     <div class="text-muted">Día @slotDate.Value.Day</div>
-                                                    <div class="text-muted">@plan.RuleApplied</div>
+                                                    @if (!string.IsNullOrWhiteSpace(plan.RuleApplied))
+                                                    {
+                                                        <div class="text-muted">@plan.RuleApplied</div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="text-muted">Manual</div>
+                                                    }
                                                 </div>
                                             }
                                             else
@@ -231,7 +238,6 @@
     private List<PsalmDto> _psalms = [];
     private List<PlannedReadingDto> _plans = [];
     private List<ReadingRecordDto> _readings = [];
-    private List<PlannedReadingDto> _existingPlans = [];
     private List<TypePreviewStats> _previewStats = [];
     private PreviewTotals _previewTotals = new(0, 0, 0);
     private Dictionary<DateOnly, PlannedReadingDto> _plansByDate = [];
@@ -265,8 +271,9 @@
     {
         try
         {
-            _readings = (await ApiClient.GetReadingsAsync()).ToList();
-            _existingPlans = (await ApiClient.GetPlannedReadingsAsync()).ToList();
+            DateOnly start = new(1900, 1, 1);
+            DateOnly end = new(2100, 12, 31);
+            _readings = (await ApiClient.GetReadingsAsync(start, end)).ToList();
         }
         catch (Exception ex)
         {
@@ -454,14 +461,16 @@
         List<PsalmDto> readablePsalms = _psalms.Where(IsReadablePsalm).ToList();
         Dictionary<int, PsalmDto> readableById = readablePsalms.ToDictionary(p => p.Id);
 
+        var today = DateOnly.FromDateTime(DateTime.Today);
+
         HashSet<int> actualReadIds = _readings
-            .Where(r => readableById.ContainsKey(r.PsalmId))
+            .Where(r => r.DateRead <= today && readableById.ContainsKey(r.PsalmId))
             .Select(r => r.PsalmId)
             .ToHashSet();
 
-        HashSet<int> plannedIds = _existingPlans
-            .Where(p => readableById.ContainsKey(p.PsalmId))
-            .Select(p => p.PsalmId)
+        HashSet<int> plannedIds = _readings
+            .Where(r => r.DateRead > today && readableById.ContainsKey(r.PsalmId))
+            .Select(r => r.PsalmId)
             .ToHashSet();
 
         HashSet<int> previewIds = _plans

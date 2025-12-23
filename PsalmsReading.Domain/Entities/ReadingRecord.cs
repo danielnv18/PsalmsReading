@@ -5,8 +5,9 @@ public sealed class ReadingRecord
     public Guid Id { get; }
     public int PsalmId { get; }
     public DateOnly DateRead { get; }
+    public string? RuleApplied { get; }
 
-    public ReadingRecord(Guid id, int psalmId, DateOnly dateRead)
+    public ReadingRecord(Guid id, int psalmId, DateOnly dateRead, string? ruleApplied = null)
     {
         if (psalmId <= 0)
         {
@@ -21,5 +22,6 @@ public sealed class ReadingRecord
         Id = id == Guid.Empty ? Guid.NewGuid() : id;
         PsalmId = psalmId;
         DateRead = dateRead;
+        RuleApplied = string.IsNullOrWhiteSpace(ruleApplied) ? null : ruleApplied.Trim();
     }
 }

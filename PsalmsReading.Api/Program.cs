@@ -29,7 +29,6 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 builder.Services.AddScoped<IPsalmRepository, PsalmRepository>();
 builder.Services.AddScoped<IReadingRepository, ReadingRepository>();
-builder.Services.AddScoped<IPlannedReadingRepository, PlannedReadingRepository>();
 builder.Services.AddScoped<IPsalmImportService, PsalmImportService>();
 builder.Services.AddScoped<IReadingScheduler, ReadingScheduler>();
 builder.Services.AddScoped<ICalendarExporter, CalendarExporter>();
@@ -106,16 +105,28 @@ api.MapPost("/psalms/reimport", async (IPsalmImportService importService, IHostE
     return Results.Ok(new { message = "Psalms re-imported from CSV.", source = csvPath });
 });
 
-api.MapGet("/readings", async (DateOnly? from, DateOnly? to, IReadingRepository repository, CancellationToken cancellationToken) =>
+api.MapGet("/readings", async (
+    DateOnly? from,
+    DateOnly? to,
+    IReadingRepository repository,
+    CancellationToken cancellationToken) =>
 {
-    if (from.HasValue && to.HasValue)
+    if (from.HasValue != to.HasValue)
     {
-        IReadOnlyList<ReadingRecord> range = await repository.GetByDateRangeAsync(from.Value, to.Value, cancellationToken);
-        return Results.Ok(range.Select(MapReading));
+        return Results.BadRequest("Both from and to are required when filtering by date.");
     }
 
-    IReadOnlyList<ReadingRecord> all = await repository.GetAllAsync(cancellationToken);
-    return Results.Ok(all.Select(MapReading));
+    var today = DateOnly.FromDateTime(DateTime.Today);
+    DateOnly start = from ?? new DateOnly(today.Year, 1, 1);
+    DateOnly end = to ?? new DateOnly(today.Year, 12, 31);
+
+    if (start > end)
+    {
+        return Results.BadRequest("From must be earlier than or equal to to.");
+    }
+
+    IReadOnlyList<ReadingRecord> range = await repository.GetByDateRangeAsync(start, end, cancellationToken);
+    return Results.Ok(range.Select(MapReading));
 });
 
 api.MapPost("/readings", async (CreateReadingRequest request, IReadingRepository repository, CancellationToken cancellationToken) =>
@@ -165,18 +176,11 @@ api.MapDelete("/readings/{id:guid}", async (Guid id, IReadingRepository reposito
     return success ? Results.NoContent() : Results.NotFound();
 });
 
-api.MapGet("/planned", async (IPlannedReadingRepository repository, CancellationToken cancellationToken) =>
-{
-    IReadOnlyList<PlannedReading> planned = await repository.GetAllAsync(cancellationToken);
-    return Results.Ok(planned.Select(MapPlannedReading));
-});
-
 api.MapGet("/stats", async (
     string? range,
     int? year,
     IPsalmRepository psalmRepository,
     IReadingRepository readingRepository,
-    IPlannedReadingRepository plannedRepository,
     CancellationToken cancellationToken) =>
 {
     if (!TryParseRange(range, out StatsRange rangeValue))
@@ -211,12 +215,13 @@ api.MapGet("/stats", async (
     var readableById = readablePsalms.ToDictionary(p => p.Id);
 
     IReadOnlyList<ReadingRecord> readingsAll = await readingRepository.GetAllAsync(cancellationToken);
-    IReadOnlyList<PlannedReading> plannedAll = await plannedRepository.GetAllAsync(cancellationToken);
+    List<ReadingRecord> actualAll = readingsAll.Where(r => r.DateRead <= today).ToList();
+    List<ReadingRecord> plannedAll = readingsAll.Where(r => r.DateRead > today).ToList();
 
-    List<ReadingRecord> readingsInRange = FilterReadings(readingsAll, rangeStart, rangeEnd);
-    List<PlannedReading> plannedInRange = FilterPlannedReadings(plannedAll, rangeStart, rangeEnd);
+    List<ReadingRecord> readingsInRange = FilterReadings(actualAll, rangeStart, rangeEnd);
+    List<ReadingRecord> plannedInRange = FilterReadings(plannedAll, rangeStart, rangeEnd);
 
-    var readPsalmIds = readingsAll
+    var readPsalmIds = actualAll
         .Where(r => readableById.ContainsKey(r.PsalmId))
         .Select(r => r.PsalmId)
         .ToHashSet();
@@ -257,7 +262,7 @@ api.MapGet("/stats", async (
     return Results.Ok(response);
 });
 
-api.MapPost("/schedule", async (ScheduleRequest request, IReadingScheduler scheduler, IPlannedReadingRepository plannedRepository, CancellationToken cancellationToken) =>
+api.MapPost("/schedule", async (ScheduleRequest request, IReadingScheduler scheduler, IReadingRepository readingRepository, CancellationToken cancellationToken) =>
 {
     if (!IsValidMonths(request.Months))
     {
@@ -266,11 +271,20 @@ api.MapPost("/schedule", async (ScheduleRequest request, IReadingScheduler sched
 
     DateOnly start = request.StartDate;
     DateOnly end = start.AddMonths(request.Months);
+    DateOnly today = DateOnly.FromDateTime(DateTime.Today);
 
     IReadOnlyList<PlannedReading> planned = await scheduler.GenerateScheduleAsync(start, request.Months, cancellationToken);
 
-    await plannedRepository.ClearRangeAsync(start, end, cancellationToken);
-    await plannedRepository.SavePlansAsync(planned, cancellationToken);
+    await readingRepository.ClearRangeAsync(start, end, today.AddDays(1), cancellationToken);
+    IReadOnlyList<ReadingRecord> toSave = planned.Select(MapPlannedToRecord).ToList();
+    IReadOnlyList<ReadingRecord> existing = await readingRepository.GetByDateRangeAsync(start, end, cancellationToken);
+    HashSet<(int PsalmId, DateOnly DateRead)> existingKeys = existing
+        .Select(r => (r.PsalmId, r.DateRead))
+        .ToHashSet();
+    List<ReadingRecord> newRecords = toSave
+        .Where(r => !existingKeys.Contains((r.PsalmId, r.DateRead)))
+        .ToList();
+    await readingRepository.AddRangeAsync(newRecords, cancellationToken);
 
     return Results.Ok(planned.Select(MapPlannedReading));
 });
@@ -286,7 +300,7 @@ api.MapPost("/schedule/preview", async (ScheduleRequest request, IReadingSchedul
     return Results.Ok(planned.Select(MapPlannedReading));
 });
 
-api.MapPost("/schedule/ics", async (ScheduleRequest request, IReadingScheduler scheduler, IPlannedReadingRepository plannedRepository, ICalendarExporter exporter, CancellationToken cancellationToken) =>
+api.MapPost("/schedule/ics", async (ScheduleRequest request, IReadingScheduler scheduler, IReadingRepository readingRepository, ICalendarExporter exporter, CancellationToken cancellationToken) =>
 {
     if (!IsValidMonths(request.Months))
     {
@@ -295,11 +309,20 @@ api.MapPost("/schedule/ics", async (ScheduleRequest request, IReadingScheduler s
 
     DateOnly start = request.StartDate;
     DateOnly end = start.AddMonths(request.Months);
+    DateOnly today = DateOnly.FromDateTime(DateTime.Today);
 
     IReadOnlyList<PlannedReading> planned = await scheduler.GenerateScheduleAsync(start, request.Months, cancellationToken);
 
-    await plannedRepository.ClearRangeAsync(start, end, cancellationToken);
-    await plannedRepository.SavePlansAsync(planned, cancellationToken);
+    await readingRepository.ClearRangeAsync(start, end, today.AddDays(1), cancellationToken);
+    IReadOnlyList<ReadingRecord> toSave = planned.Select(MapPlannedToRecord).ToList();
+    IReadOnlyList<ReadingRecord> existing = await readingRepository.GetByDateRangeAsync(start, end, cancellationToken);
+    HashSet<(int PsalmId, DateOnly DateRead)> existingKeys = existing
+        .Select(r => (r.PsalmId, r.DateRead))
+        .ToHashSet();
+    List<ReadingRecord> newRecords = toSave
+        .Where(r => !existingKeys.Contains((r.PsalmId, r.DateRead)))
+        .ToList();
+    await readingRepository.AddRangeAsync(newRecords, cancellationToken);
 
     var ics = await exporter.CreateCalendarAsync(planned, cancellationToken);
     return string.IsNullOrWhiteSpace(ics) ? Results.NoContent() : Results.Text(ics, "text/calendar");
@@ -311,9 +334,12 @@ static PsalmDto MapPsalm(Psalm psalm) =>
     new(psalm.Id, psalm.Title, psalm.TotalVerses, psalm.Type, psalm.Epigraphs, psalm.Themes);
 
 static ReadingRecordDto MapReading(ReadingRecord record) =>
-    new(record.Id, record.PsalmId, record.DateRead);
+    new(record.Id, record.PsalmId, record.DateRead, record.RuleApplied);
 
 static PlannedReadingDto MapPlannedReading(PlannedReading planned) =>
+    new(planned.Id, planned.PsalmId, planned.ScheduledDate, planned.RuleApplied);
+
+static ReadingRecord MapPlannedToRecord(PlannedReading planned) =>
     new(planned.Id, planned.PsalmId, planned.ScheduledDate, planned.RuleApplied);
 
 static string GetRangeLabel(StatsRange range) =>
@@ -336,21 +362,10 @@ static List<ReadingRecord> FilterReadings(IReadOnlyList<ReadingRecord> readings,
     return filtered.ToList();
 }
 
-static List<PlannedReading> FilterPlannedReadings(IReadOnlyList<PlannedReading> readings, DateOnly? start, DateOnly? end)
-{
-    IEnumerable<PlannedReading> filtered = readings;
-    if (start.HasValue && end.HasValue)
-    {
-        filtered = filtered.Where(r => r.ScheduledDate >= start.Value && r.ScheduledDate <= end.Value);
-    }
-
-    return filtered.ToList();
-}
-
 static List<TypeStatsDto> BuildTypeStats(
     IReadOnlyList<Psalm> readablePsalms,
     IReadOnlyList<ReadingRecord> readingsInRange,
-    IReadOnlyList<PlannedReading> plannedInRange,
+    IReadOnlyList<ReadingRecord> plannedInRange,
     HashSet<int> readPsalmIds,
     HashSet<int> projectedPsalmIds)
 {

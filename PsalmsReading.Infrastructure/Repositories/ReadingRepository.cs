@@ -20,6 +20,18 @@ public sealed class ReadingRepository : IReadingRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task AddRangeAsync(IEnumerable<ReadingRecord> records, CancellationToken cancellationToken = default)
+    {
+        List<ReadingRecord> list = records.ToList();
+        if (list.Count == 0)
+        {
+            return;
+        }
+
+        _dbContext.ReadingRecords.AddRange(list);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<bool> UpdateAsync(ReadingRecord record, CancellationToken cancellationToken = default)
     {
         var exists = await _dbContext.ReadingRecords.AnyAsync(r => r.Id == record.Id, cancellationToken);
@@ -62,5 +74,26 @@ public sealed class ReadingRepository : IReadingRepository
     public Task<int> GetReadCountAsync(int psalmId, CancellationToken cancellationToken = default)
     {
         return _dbContext.ReadingRecords.AsNoTracking().CountAsync(r => r.PsalmId == psalmId, cancellationToken);
+    }
+
+    public async Task ClearRangeAsync(DateOnly start, DateOnly end, DateOnly? minDateInclusive = default, CancellationToken cancellationToken = default)
+    {
+        IQueryable<ReadingRecord> query = _dbContext.ReadingRecords
+            .Where(r => r.DateRead >= start && r.DateRead <= end);
+
+        if (minDateInclusive.HasValue)
+        {
+            DateOnly minDate = minDateInclusive.Value;
+            query = query.Where(r => r.DateRead >= minDate);
+        }
+
+        List<ReadingRecord> existing = await query.ToListAsync(cancellationToken);
+        if (existing.Count == 0)
+        {
+            return;
+        }
+
+        _dbContext.ReadingRecords.RemoveRange(existing);
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }

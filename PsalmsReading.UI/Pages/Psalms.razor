@@ -102,7 +102,9 @@ else
             _error = null;
             _isLoading = true;
             _psalms = (await ApiClient.GetPsalmsAsync()).OrderBy(p => p.Id).ToList();
-            _readings = (await ApiClient.GetReadingsAsync()).ToList();
+            DateOnly start = new(1900, 1, 1);
+            DateOnly end = new(2100, 12, 31);
+            _readings = (await ApiClient.GetReadingsAsync(start, end)).ToList();
             _readingStats = BuildReadingStats(_readings);
             ApplyFilter();
         }
@@ -152,8 +154,14 @@ else
     private static Dictionary<int, PsalmReadingStats> BuildReadingStats(IEnumerable<ReadingRecordDto> readings)
     {
         Dictionary<int, PsalmReadingStats> stats = new();
+        DateOnly today = DateOnly.FromDateTime(DateTime.Today);
         foreach (ReadingRecordDto reading in readings)
         {
+            if (reading.DateRead > today)
+            {
+                continue;
+            }
+
             if (!stats.TryGetValue(reading.PsalmId, out PsalmReadingStats? current))
             {
                 stats[reading.PsalmId] = new PsalmReadingStats(1, reading.DateRead);

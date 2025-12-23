@@ -11,6 +11,7 @@ public sealed class ReadingRecordConfiguration : IEntityTypeConfiguration<Readin
         builder.HasKey(r => r.Id);
         builder.Property(r => r.PsalmId).IsRequired();
         builder.Property(r => r.DateRead).IsRequired();
+        builder.Property(r => r.RuleApplied).HasMaxLength(200);
 
         builder.HasIndex(r => new { r.PsalmId, r.DateRead }).IsUnique();
     }

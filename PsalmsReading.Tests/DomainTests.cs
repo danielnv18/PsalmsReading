@@ -55,8 +55,9 @@ public class DomainTests
     }
 
     [Fact]
-    public void PlannedReading_RequiresRule()
+    public void PlannedReading_AllowsMissingRule()
     {
-        Assert.Throws<ArgumentException>(() => new PlannedReading(Guid.NewGuid(), 1, new DateOnly(2024, 1, 1), ""));
+        var planned = new PlannedReading(Guid.NewGuid(), 1, new DateOnly(2024, 1, 1), null);
+        Assert.Null(planned.RuleApplied);
     }
 }

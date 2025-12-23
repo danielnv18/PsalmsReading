@@ -15,7 +15,7 @@ public class SchedulingTests
             new(2, "Alabanza Psalm", 20, "alabanza", null, new List<string>())
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
 
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 1, 1), 1);
 
@@ -31,7 +31,7 @@ public class SchedulingTests
             new(2, "Alabanza Psalm", 20, "alabanza", null, new List<string>())
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
 
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 6, 1), 1);
 
@@ -52,7 +52,7 @@ public class SchedulingTests
             new(Guid.NewGuid(), 114, new DateOnly(2024, 1, 7))
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(pastReads), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(pastReads), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 4, 1), 1);
 
         Assert.Contains(plans, p => p.PsalmId == 113);
@@ -67,7 +67,7 @@ public class SchedulingTests
             new(114, "Easter", 20, null, null, new List<string>())
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 4, 1), 1);
 
         Assert.All(plans.Where(p => p.ScheduledDate.Month == 4 && p.ScheduledDate.Day is 13 or 20 or 27),
@@ -83,7 +83,7 @@ public class SchedulingTests
             new(11, "Mesiánico", 20, null, new List<string> { "Mesiánico" }, new List<string>())
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 12, 1), 1);
 
         Assert.Contains(plans, p => p.PsalmId == 11);
@@ -97,7 +97,7 @@ public class SchedulingTests
             new(11, "Mesiánico", 20, "mesiánico", new List<string> { "Mesiánico" }, new List<string>())
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 12, 1), 1);
 
         Assert.All(plans, p => Assert.Equal("Christmas season", p.RuleApplied));
@@ -112,7 +112,7 @@ public class SchedulingTests
             new(2, "Año nuevo", 20, null, null, new List<string> { "Días festivos: año nuevo" })
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 1, 1), 1);
 
         Assert.Contains(plans, p => p.PsalmId == 2);
@@ -126,7 +126,7 @@ public class SchedulingTests
             new(2, "Año nuevo", 20, null, null, new List<string> { "Días festivos: año nuevo" })
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2026, 1, 1), 1);
 
         Assert.All(plans, p => Assert.Equal("First Sunday new year", p.RuleApplied));
@@ -141,7 +141,7 @@ public class SchedulingTests
             new(2, "Thanksgiving", 20, null, null, new List<string> { "Días festivos: Agradecimiento" })
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 11, 1), 1);
 
         var thanksgivingSundays = plans.Where(p => p.RuleApplied == "Thanksgiving").Select(p => p.PsalmId).ToList();
@@ -166,7 +166,7 @@ public class SchedulingTests
             new(Guid.NewGuid(), 4, new DateOnly(2026, 10, 21))
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(pastReads), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(pastReads), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2027, 11, 1), 1);
 
         var byDate = plans.Where(p => p.ScheduledDate.Month == 11).ToDictionary(p => p.ScheduledDate, p => p);
@@ -187,7 +187,7 @@ public class SchedulingTests
             new(42, "Allowed", 20, null, null, new List<string>())
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 2, 1), 1);
 
         Assert.Single(plans);
@@ -209,7 +209,7 @@ public class SchedulingTests
             new(Guid.NewGuid(), 2, new DateOnly(2024, 2, 7)),
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(pastReads), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(pastReads), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 5, 1), 1);
 
         Assert.Contains(plans, p => p.PsalmId == 1 && p.RuleApplied == "General");
@@ -229,7 +229,7 @@ public class SchedulingTests
             new(Guid.NewGuid(), 2, new DateOnly(2024, 3, 10))
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(pastReads), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(pastReads), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 3, 12), 1);
 
         Assert.All(plans, p => Assert.Equal("General", p.RuleApplied));
@@ -240,7 +240,7 @@ public class SchedulingTests
     [InlineData(-3)]
     public async Task Throws_When_Months_Not_Positive(int months)
     {
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(new List<Psalm>()), new FakeReadingRepository(), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(new List<Psalm>()), new FakeReadingRepository(), new Random(42));
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => scheduler.GenerateScheduleAsync(new DateOnly(2025, 1, 1), months));
     }
@@ -250,14 +250,14 @@ public class SchedulingTests
     {
         var psalms = new List<Psalm>
         {
-            new(5, "Only Psalm", 20, null, null, new List<string>())
+            new(41, "Only Psalm", 20, null, null, new List<string>())
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 1, 12), 3);
 
         Assert.Single(plans);
-        Assert.Equal(5, plans[0].PsalmId);
+        Assert.Equal(41, plans[0].PsalmId);
     }
 
     [Fact]
@@ -265,23 +265,23 @@ public class SchedulingTests
     {
         var psalms = new List<Psalm>
         {
-            new(10, "Most Read", 20, null, null, new List<string>()),
-            new(11, "Read Once", 10, null, null, new List<string>()),
-            new(12, "Never Read", 15, null, null, new List<string>()),
-            new(13, "Never Read Too", 25, null, null, new List<string>())
+            new(41, "Most Read", 20, null, null, new List<string>()),
+            new(42, "Read Once", 10, null, null, new List<string>()),
+            new(43, "Never Read", 15, null, null, new List<string>()),
+            new(44, "Never Read Too", 25, null, null, new List<string>())
         };
 
         var reads = new List<ReadingRecord>
         {
-            new(Guid.NewGuid(), 10, new DateOnly(2024, 1, 1)),
-            new(Guid.NewGuid(), 10, new DateOnly(2024, 1, 8)),
-            new(Guid.NewGuid(), 10, new DateOnly(2024, 1, 15)),
-            new(Guid.NewGuid(), 10, new DateOnly(2024, 1, 22)),
-            new(Guid.NewGuid(), 10, new DateOnly(2024, 1, 29)),
-            new(Guid.NewGuid(), 11, new DateOnly(2024, 2, 5))
+            new(Guid.NewGuid(), 41, new DateOnly(2024, 1, 1)),
+            new(Guid.NewGuid(), 41, new DateOnly(2024, 1, 8)),
+            new(Guid.NewGuid(), 41, new DateOnly(2024, 1, 15)),
+            new(Guid.NewGuid(), 41, new DateOnly(2024, 1, 22)),
+            new(Guid.NewGuid(), 41, new DateOnly(2024, 1, 29)),
+            new(Guid.NewGuid(), 42, new DateOnly(2024, 2, 5))
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(reads), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(reads), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 3, 9), 4);
 
         // First two selections should be from tier with 0 reads (psalms 12 or 13, randomly chosen with seed 42)
@@ -289,11 +289,11 @@ public class SchedulingTests
         // Fourth selection should be from tier with 5 reads (psalm 10)
         var orderedIds = plans.Select(p => p.PsalmId).ToList();
 
-        Assert.True(orderedIds[0] is 12 or 13, $"First should be 12 or 13, got {orderedIds[0]}");
-        Assert.True(orderedIds[1] is 12 or 13, $"Second should be 12 or 13, got {orderedIds[1]}");
+        Assert.True(orderedIds[0] is 43 or 44, $"First should be 43 or 44, got {orderedIds[0]}");
+        Assert.True(orderedIds[1] is 43 or 44, $"Second should be 43 or 44, got {orderedIds[1]}");
         Assert.NotEqual(orderedIds[0], orderedIds[1]);
-        Assert.Equal(11, orderedIds[2]);
-        Assert.Equal(10, orderedIds[3]);
+        Assert.Equal(42, orderedIds[2]);
+        Assert.Equal(41, orderedIds[3]);
     }
 
     [Fact]
@@ -301,15 +301,15 @@ public class SchedulingTests
     {
         var psalms = new List<Psalm>
         {
-            new(10, "First", 20, null, null, new List<string>()),
-            new(11, "Second", 20, null, null, new List<string>()),
-            new(12, "Third", 20, null, null, new List<string>()),
-            new(13, "Fourth", 20, null, null, new List<string>())
+            new(41, "First", 20, null, null, new List<string>()),
+            new(42, "Second", 20, null, null, new List<string>()),
+            new(43, "Third", 20, null, null, new List<string>()),
+            new(44, "Fourth", 20, null, null, new List<string>())
         };
 
         // All psalms have 0 reads, so all 4 are in the same tier
         // Start on a Sunday and request minimal month span to get 1 Sunday
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 3, 9), 1);
 
         // 1 month starting March 9, 2025 (Sunday) will give multiple Sundays
@@ -317,7 +317,7 @@ public class SchedulingTests
         Assert.NotEmpty(plans);
         foreach (var plan in plans)
         {
-            Assert.Contains(plan.PsalmId, new List<int> { 10, 11, 12, 13 });
+            Assert.Contains(plan.PsalmId, new List<int> { 41, 42, 43, 44 });
         }
     }
 
@@ -342,7 +342,7 @@ public class SchedulingTests
             new(Guid.NewGuid(), 115, new DateOnly(2024, 4, 28))
         };
 
-        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(reads), new FakePlannedReadingRepository(), new Random(42));
+        var scheduler = new ReadingScheduler(new FakePsalmRepository(psalms), new FakeReadingRepository(reads), new Random(42));
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 4, 7), 1);
 
         var plansByDate = plans.ToDictionary(p => p.ScheduledDate, p => p.PsalmId);
@@ -363,7 +363,7 @@ public class SchedulingTests
             new(3, "Alabanza", 10, "alabanza", null, new List<string>())
         };
 
-        var planned = new List<PlannedReading>
+        List<ReadingRecord> existing = new()
         {
             new(Guid.NewGuid(), 1, new DateOnly(2025, 2, 2), "General"),
             new(Guid.NewGuid(), 2, new DateOnly(2025, 2, 9), "General")
@@ -371,8 +371,7 @@ public class SchedulingTests
 
         ReadingScheduler scheduler = new(
             new FakePsalmRepository(psalms),
-            new FakeReadingRepository(),
-            new FakePlannedReadingRepository(planned),
+            new FakeReadingRepository(existing),
             new Random(42));
 
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 2, 10), 1);
@@ -390,7 +389,7 @@ public class SchedulingTests
             new(3, "Alabanza", 10, "alabanza", null, new List<string>())
         };
 
-        var planned = new List<PlannedReading>
+        List<ReadingRecord> existing = new()
         {
             new(Guid.NewGuid(), 1, new DateOnly(2025, 2, 9), "General"),
             new(Guid.NewGuid(), 2, new DateOnly(2025, 2, 16), "General")
@@ -398,8 +397,7 @@ public class SchedulingTests
 
         var scheduler = new ReadingScheduler(
             new FakePsalmRepository(psalms),
-            new FakeReadingRepository(),
-            new FakePlannedReadingRepository(planned),
+            new FakeReadingRepository(existing),
             new Random(42));
 
         var plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 3, 2), 1);
@@ -417,7 +415,7 @@ public class SchedulingTests
             new(3, "Alabanza", 10, "alabanza", null, new List<string>())
         };
 
-        List<PlannedReading> planned = new()
+        List<ReadingRecord> existing = new()
         {
             new(Guid.NewGuid(), 1, new DateOnly(2025, 5, 4), "General"),
             new(Guid.NewGuid(), 2, new DateOnly(2025, 5, 11), "General")
@@ -425,8 +423,7 @@ public class SchedulingTests
 
         var scheduler = new ReadingScheduler(
             new FakePsalmRepository(psalms),
-            new FakeReadingRepository(),
-            new FakePlannedReadingRepository(planned),
+            new FakeReadingRepository(existing),
             new Random(42));
 
         IReadOnlyList<PlannedReading> plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 5, 18), 1);
@@ -444,15 +441,14 @@ public class SchedulingTests
             new(3, "Sabiduria A", 10, "sabiduria", null, new List<string>())
         };
 
-        List<PlannedReading> planned = new()
+        List<ReadingRecord> existing = new()
         {
             new(Guid.NewGuid(), 3, new DateOnly(2025, 2, 2), "General")
         };
 
         var scheduler = new ReadingScheduler(
             new FakePsalmRepository(psalms),
-            new FakeReadingRepository(),
-            new FakePlannedReadingRepository(planned),
+            new FakeReadingRepository(existing),
             new Random(42));
 
         IReadOnlyList<PlannedReading> plans = await scheduler.GenerateScheduleAsync(new DateOnly(2025, 2, 10), 1);
@@ -498,6 +494,12 @@ public class SchedulingTests
             return Task.CompletedTask;
         }
 
+        public Task AddRangeAsync(IEnumerable<ReadingRecord> records, CancellationToken cancellationToken = default)
+        {
+            _records.AddRange(records);
+            return Task.CompletedTask;
+        }
+
         public Task<bool> UpdateAsync(ReadingRecord record, CancellationToken cancellationToken = default)
         {
             var index = _records.FindIndex(r => r.Id == record.Id);
@@ -527,35 +529,22 @@ public class SchedulingTests
 
         public Task<int> GetReadCountAsync(int psalmId, CancellationToken cancellationToken = default) =>
             Task.FromResult(_records.Count(r => r.PsalmId == psalmId));
-    }
 
-    private sealed class FakePlannedReadingRepository : IPlannedReadingRepository
-    {
-        private readonly List<PlannedReading> _planned;
-
-        public FakePlannedReadingRepository(IEnumerable<PlannedReading>? planned = null)
+        public Task ClearRangeAsync(DateOnly start, DateOnly end, DateOnly? minDateInclusive = default, CancellationToken cancellationToken = default)
         {
-            _planned = planned?.ToList() ?? new List<PlannedReading>();
-        }
+            IEnumerable<ReadingRecord> filtered = _records.Where(r => r.DateRead >= start && r.DateRead <= end);
+            if (minDateInclusive.HasValue)
+            {
+                DateOnly minDate = minDateInclusive.Value;
+                filtered = filtered.Where(r => r.DateRead >= minDate);
+            }
 
-        public Task SavePlansAsync(IEnumerable<PlannedReading> plans, CancellationToken cancellationToken = default)
-        {
-            _planned.AddRange(plans);
-            return Task.CompletedTask;
-        }
+            List<ReadingRecord> toRemove = filtered.ToList();
+            foreach (ReadingRecord record in toRemove)
+            {
+                _records.Remove(record);
+            }
 
-        public Task<IReadOnlyList<PlannedReading>> GetAllAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<PlannedReading>>(_planned);
-
-        public Task<IReadOnlyList<PlannedReading>> GetRangeAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
-        {
-            var result = _planned.Where(p => p.ScheduledDate >= from && p.ScheduledDate <= to).ToList();
-            return Task.FromResult<IReadOnlyList<PlannedReading>>(result);
-        }
-
-        public Task ClearRangeAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
-        {
-            _planned.RemoveAll(p => p.ScheduledDate >= from && p.ScheduledDate <= to);
             return Task.CompletedTask;
         }
     }
