@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PsalmsReading.Infrastructure.Data;
 
@@ -10,9 +11,11 @@ using PsalmsReading.Infrastructure.Data;
 namespace PsalmsReading.Infrastructure.Migrations
 {
     [DbContext(typeof(PsalmsDbContext))]
-    partial class PsalmsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251223050000_DropPlannedReadings")]
+    partial class DropPlannedReadings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
