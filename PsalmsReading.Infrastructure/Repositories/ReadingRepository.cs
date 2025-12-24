@@ -58,6 +58,28 @@ public sealed class ReadingRepository : IReadingRepository
         return true;
     }
 
+    public async Task<int> DeleteByDatesAsync(IReadOnlyList<DateOnly> dates, CancellationToken cancellationToken = default)
+    {
+        if (dates.Count == 0)
+        {
+            return 0;
+        }
+
+        List<DateOnly> distinctDates = dates.Distinct().ToList();
+        List<ReadingRecord> existing = await _dbContext.ReadingRecords
+            .Where(r => distinctDates.Contains(r.DateRead))
+            .ToListAsync(cancellationToken);
+
+        if (existing.Count == 0)
+        {
+            return 0;
+        }
+
+        _dbContext.ReadingRecords.RemoveRange(existing);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return existing.Count;
+    }
+
     public async Task<IReadOnlyList<ReadingRecord>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await _dbContext.ReadingRecords.AsNoTracking().ToListAsync(cancellationToken);

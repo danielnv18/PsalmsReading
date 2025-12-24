@@ -518,6 +518,18 @@ public class SchedulingTests
             return Task.FromResult(removed);
         }
 
+        public Task<int> DeleteByDatesAsync(IReadOnlyList<DateOnly> dates, CancellationToken cancellationToken = default)
+        {
+            if (dates.Count == 0)
+            {
+                return Task.FromResult(0);
+            }
+
+            HashSet<DateOnly> dateSet = dates.Distinct().ToHashSet();
+            int removed = _records.RemoveAll(r => dateSet.Contains(r.DateRead));
+            return Task.FromResult(removed);
+        }
+
         public Task<IReadOnlyList<ReadingRecord>> GetAllAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<ReadingRecord>>(_records);
 

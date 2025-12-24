@@ -28,6 +28,7 @@
         <a href="." class="reload">Reload</a>
         <span class="dismiss">🗙</span>
     </div>
+    <div id="toast-container" class="toast-container position-fixed bottom-0 start-0 p-3" aria-live="polite" aria-atomic="true"></div>
     <script src="lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         window.psalmsReading = window.psalmsReading || {};
@@ -39,6 +40,36 @@
                     tooltipTriggerEl.dataset.tooltipInitialized = "true";
                 }
             });
+        };
+        window.psalmsReading.showToast = function (message, type) {
+            var container = document.getElementById("toast-container");
+            if (!container) {
+                return;
+            }
+            var toast = document.createElement("div");
+            toast.className = "toast align-items-center text-bg-" + (type || "primary") + " border-0";
+            toast.setAttribute("role", "alert");
+            toast.setAttribute("aria-live", "assertive");
+            toast.setAttribute("aria-atomic", "true");
+            toast.innerHTML = "<div class='d-flex'><div class='toast-body'></div><button type='button' class='btn-close btn-close-white me-2 m-auto' data-bs-dismiss='toast' aria-label='Close'></button></div>";
+            toast.querySelector(".toast-body").textContent = message;
+            container.appendChild(toast);
+            var instance = bootstrap.Toast.getOrCreateInstance(toast, { delay: 3000 });
+            instance.show();
+            toast.addEventListener("hidden.bs.toast", function () {
+                toast.remove();
+            });
+        };
+        window.psalmsReading.downloadFile = function (fileName, content, contentType) {
+            var blob = new Blob([content], { type: contentType || "application/octet-stream" });
+            var url = URL.createObjectURL(blob);
+            var link = document.createElement("a");
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
         };
     </script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>

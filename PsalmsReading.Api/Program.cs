@@ -32,6 +32,8 @@ builder.Services.AddScoped<IReadingRepository, ReadingRepository>();
 builder.Services.AddScoped<IPsalmImportService, PsalmImportService>();
 builder.Services.AddScoped<IReadingScheduler, ReadingScheduler>();
 builder.Services.AddScoped<ICalendarExporter, CalendarExporter>();
+builder.Services.AddScoped<IReadingExportService, ReadingExportService>();
+builder.Services.AddScoped<IReadingImportService, ReadingImportService>();
 
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
@@ -176,6 +178,114 @@ api.MapDelete("/readings/{id:guid}", async (Guid id, IReadingRepository reposito
     return success ? Results.NoContent() : Results.NotFound();
 });
 
+api.MapPost("/readings/bulk-delete", async (
+    BulkDeleteReadingsRequest request,
+    IReadingRepository repository,
+    CancellationToken cancellationToken) =>
+{
+    if (request.Dates.Count == 0)
+    {
+        return Results.BadRequest("Dates are required.");
+    }
+
+    var dates = request.Dates
+        .Where(d => d != default)
+        .Distinct()
+        .ToList();
+
+    if (dates.Count == 0)
+    {
+        return Results.BadRequest("Valid dates are required.");
+    }
+
+    var deletedCount = await repository.DeleteByDatesAsync(dates, cancellationToken);
+    return Results.Ok(new { deletedCount });
+});
+
+api.MapGet("/readings/export/json", async (
+    string? range,
+    int? year,
+    IReadingExportService exportService,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryParseReadingExportRange(range, out ReadingExportRange exportRange))
+    {
+        return Results.BadRequest("Range must be all or year.");
+    }
+
+    if (exportRange == ReadingExportRange.Year && !year.HasValue)
+    {
+        year = DateTime.Today.Year;
+    }
+
+    ReadingExportDto export = await exportService.ExportJsonAsync(exportRange, year, cancellationToken);
+    return Results.Ok(export);
+});
+
+api.MapGet("/readings/export/ics", async (
+    string? range,
+    int? year,
+    IReadingExportService exportService,
+    ICalendarExporter calendarExporter,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryParseReadingExportRange(range, out ReadingExportRange exportRange))
+    {
+        return Results.BadRequest("Range must be all or year.");
+    }
+
+    if (exportRange == ReadingExportRange.Year && !year.HasValue)
+    {
+        year = DateTime.Today.Year;
+    }
+
+    IReadOnlyList<ReadingRecord> readings = await exportService.GetReadingsAsync(exportRange, year, cancellationToken);
+    var planned = readings
+        .Select(r => new PlannedReading(r.Id, r.PsalmId, r.DateRead, r.RuleApplied))
+        .ToList();
+
+    var ics = await calendarExporter.CreateCalendarAsync(planned, cancellationToken);
+    return Results.Text(ics, "text/calendar");
+});
+
+api.MapPost("/readings/import/preview", async (
+    ReadingExportDto importData,
+    IReadingImportService importService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        ReadingImportPreviewDto preview = await importService.PreviewAsync(importData, cancellationToken);
+        return Results.Ok(preview);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+});
+
+api.MapPost("/readings/import", async (
+    string? mode,
+    ReadingExportDto importData,
+    IReadingImportService importService,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryParseReadingImportMode(mode, out ReadingImportMode importMode))
+    {
+        return Results.BadRequest("Mode must be replace or ignore.");
+    }
+
+    try
+    {
+        ReadingImportResultDto result = await importService.ImportAsync(importData, importMode, cancellationToken);
+        return Results.Ok(result);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+});
+
 api.MapGet("/stats", async (
     string? range,
     int? year,
@@ -215,8 +325,8 @@ api.MapGet("/stats", async (
     var readableById = readablePsalms.ToDictionary(p => p.Id);
 
     IReadOnlyList<ReadingRecord> readingsAll = await readingRepository.GetAllAsync(cancellationToken);
-    List<ReadingRecord> actualAll = readingsAll.Where(r => r.DateRead <= today).ToList();
-    List<ReadingRecord> plannedAll = readingsAll.Where(r => r.DateRead > today).ToList();
+    var actualAll = readingsAll.Where(r => r.DateRead <= today).ToList();
+    var plannedAll = readingsAll.Where(r => r.DateRead > today).ToList();
 
     List<ReadingRecord> readingsInRange = FilterReadings(actualAll, rangeStart, rangeEnd);
     List<ReadingRecord> plannedInRange = FilterReadings(plannedAll, rangeStart, rangeEnd);
@@ -271,17 +381,17 @@ api.MapPost("/schedule", async (ScheduleRequest request, IReadingScheduler sched
 
     DateOnly start = request.StartDate;
     DateOnly end = start.AddMonths(request.Months);
-    DateOnly today = DateOnly.FromDateTime(DateTime.Today);
+    var today = DateOnly.FromDateTime(DateTime.Today);
 
     IReadOnlyList<PlannedReading> planned = await scheduler.GenerateScheduleAsync(start, request.Months, cancellationToken);
 
     await readingRepository.ClearRangeAsync(start, end, today.AddDays(1), cancellationToken);
     IReadOnlyList<ReadingRecord> toSave = planned.Select(MapPlannedToRecord).ToList();
     IReadOnlyList<ReadingRecord> existing = await readingRepository.GetByDateRangeAsync(start, end, cancellationToken);
-    HashSet<(int PsalmId, DateOnly DateRead)> existingKeys = existing
+    var existingKeys = existing
         .Select(r => (r.PsalmId, r.DateRead))
         .ToHashSet();
-    List<ReadingRecord> newRecords = toSave
+    var newRecords = toSave
         .Where(r => !existingKeys.Contains((r.PsalmId, r.DateRead)))
         .ToList();
     await readingRepository.AddRangeAsync(newRecords, cancellationToken);
@@ -309,17 +419,17 @@ api.MapPost("/schedule/ics", async (ScheduleRequest request, IReadingScheduler s
 
     DateOnly start = request.StartDate;
     DateOnly end = start.AddMonths(request.Months);
-    DateOnly today = DateOnly.FromDateTime(DateTime.Today);
+    var today = DateOnly.FromDateTime(DateTime.Today);
 
     IReadOnlyList<PlannedReading> planned = await scheduler.GenerateScheduleAsync(start, request.Months, cancellationToken);
 
     await readingRepository.ClearRangeAsync(start, end, today.AddDays(1), cancellationToken);
     IReadOnlyList<ReadingRecord> toSave = planned.Select(MapPlannedToRecord).ToList();
     IReadOnlyList<ReadingRecord> existing = await readingRepository.GetByDateRangeAsync(start, end, cancellationToken);
-    HashSet<(int PsalmId, DateOnly DateRead)> existingKeys = existing
+    var existingKeys = existing
         .Select(r => (r.PsalmId, r.DateRead))
         .ToHashSet();
-    List<ReadingRecord> newRecords = toSave
+    var newRecords = toSave
         .Where(r => !existingKeys.Contains((r.PsalmId, r.DateRead)))
         .ToList();
     await readingRepository.AddRangeAsync(newRecords, cancellationToken);
@@ -374,6 +484,42 @@ static List<TypeStatsDto> BuildTypeStats(
         .OrderBy(g => g.Key);
 
     return (from @group in grouped let idsInType = @group.Select(p => p.Id).ToHashSet() let totalReadable = idsInType.Count let actualReads = readingsInRange.Count(r => idsInType.Contains(r.PsalmId)) let plannedReads = plannedInRange.Count(p => idsInType.Contains(p.PsalmId)) let actualCoverage = idsInType.Count(readPsalmIds.Contains) let projectedCoverage = idsInType.Count(projectedPsalmIds.Contains) select new TypeStatsDto(@group.Key, totalReadable, actualReads, plannedReads, actualCoverage, projectedCoverage)).ToList();
+}
+
+static bool TryParseReadingExportRange(string? range, out ReadingExportRange exportRange)
+{
+    if (string.IsNullOrWhiteSpace(range) || string.Equals(range, "year", StringComparison.OrdinalIgnoreCase))
+    {
+        exportRange = ReadingExportRange.Year;
+        return true;
+    }
+
+    if (string.Equals(range, "all", StringComparison.OrdinalIgnoreCase))
+    {
+        exportRange = ReadingExportRange.All;
+        return true;
+    }
+
+    exportRange = ReadingExportRange.Year;
+    return false;
+}
+
+static bool TryParseReadingImportMode(string? mode, out ReadingImportMode importMode)
+{
+    if (string.Equals(mode, "replace", StringComparison.OrdinalIgnoreCase))
+    {
+        importMode = ReadingImportMode.ReplaceConflicts;
+        return true;
+    }
+
+    if (string.Equals(mode, "ignore", StringComparison.OrdinalIgnoreCase))
+    {
+        importMode = ReadingImportMode.IgnoreConflicts;
+        return true;
+    }
+
+    importMode = ReadingImportMode.IgnoreConflicts;
+    return false;
 }
 
 static string NormalizeType(string? type) =>

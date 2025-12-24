@@ -12,6 +12,29 @@ public record UpdateReadingRequest(int PsalmId, DateOnly DateRead);
 
 public record ScheduleRequest(DateOnly StartDate, int Months);
 
+public sealed record ReadingExportDto(
+    int SchemaVersion,
+    DateTimeOffset ExportedAt,
+    string Range,
+    int? Year,
+    IReadOnlyList<ReadingExportRecordDto> Records);
+
+public sealed record ReadingExportRecordDto(Guid Id, int PsalmId, DateOnly DateRead, string? RuleApplied);
+
+public sealed record ReadingImportPreviewDto(
+    int TotalRecords,
+    int ConflictCount,
+    IReadOnlyList<DateOnly> ConflictDates);
+
+public sealed record ReadingImportResultDto(
+    int ImportedCount,
+    int SkippedCount,
+    int ReplacedDates);
+
+public sealed record BulkDeleteReadingsRequest(IReadOnlyList<DateOnly> Dates);
+
+public sealed record BulkDeleteReadingsResultDto(int DeletedCount);
+
 public sealed record StatsDto(
     string Range,
     DateOnly? RangeStart,

@@ -1,4 +1,5 @@
 ﻿using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using PsalmsReading.UI.Json;
 using PsalmsReading.UI.Models;
@@ -28,7 +29,7 @@ public sealed class ApiClient
         DateOnly? to = default,
         CancellationToken cancellationToken = default)
     {
-        string uri = "readings";
+        var uri = "readings";
         List<string> queryParts = new();
 
         if (from.HasValue && to.HasValue)
@@ -62,6 +63,56 @@ public sealed class ApiClient
     {
         HttpResponseMessage response = await _httpClient.DeleteAsync($"readings/{id}", cancellationToken);
         await EnsureSuccess(response);
+    }
+
+    public async Task<int> BulkDeleteReadingsAsync(IReadOnlyList<DateOnly> dates, CancellationToken cancellationToken = default)
+    {
+        var request = new BulkDeleteReadingsRequest(dates);
+        HttpResponseMessage response = await _httpClient.PostAsJsonAsync("readings/bulk-delete", request, _jsonOptions, cancellationToken);
+        await EnsureSuccess(response);
+
+        BulkDeleteReadingsResultDto? result = await response.Content.ReadFromJsonAsync<BulkDeleteReadingsResultDto>(_jsonOptions, cancellationToken);
+        return result?.DeletedCount ?? 0;
+    }
+
+    public async Task<string> ExportReadingsIcsAsync(string range, int? year, CancellationToken cancellationToken = default)
+    {
+        var uri = BuildExportUri("readings/export/ics", range, year);
+        HttpResponseMessage response = await _httpClient.GetAsync(uri, cancellationToken);
+        await EnsureSuccess(response);
+        return await response.Content.ReadAsStringAsync(cancellationToken);
+    }
+
+    public async Task<string> ExportReadingsJsonAsync(string range, int? year, CancellationToken cancellationToken = default)
+    {
+        var uri = BuildExportUri("readings/export/json", range, year);
+        HttpResponseMessage response = await _httpClient.GetAsync(uri, cancellationToken);
+        await EnsureSuccess(response);
+        return await response.Content.ReadAsStringAsync(cancellationToken);
+    }
+
+    public async Task<ReadingImportPreviewDto> PreviewReadingsImportAsync(string json, CancellationToken cancellationToken = default)
+    {
+        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+        HttpResponseMessage response = await _httpClient.PostAsync("readings/import/preview", content, cancellationToken);
+        await EnsureSuccess(response);
+
+        ReadingImportPreviewDto? result = await response.Content.ReadFromJsonAsync<ReadingImportPreviewDto>(_jsonOptions, cancellationToken);
+        return result ?? new ReadingImportPreviewDto(0, 0, []);
+    }
+
+    public async Task<ReadingImportResultDto> ImportReadingsAsync(
+        string json,
+        string mode,
+        CancellationToken cancellationToken = default)
+    {
+        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var uri = $"readings/import?mode={Uri.EscapeDataString(mode)}";
+        HttpResponseMessage response = await _httpClient.PostAsync(uri, content, cancellationToken);
+        await EnsureSuccess(response);
+
+        ReadingImportResultDto? result = await response.Content.ReadFromJsonAsync<ReadingImportResultDto>(_jsonOptions, cancellationToken);
+        return result ?? new ReadingImportResultDto(0, 0, 0);
     }
 
     public async Task<IReadOnlyList<PlannedReadingDto>> GenerateScheduleAsync(ScheduleRequest request, CancellationToken cancellationToken = default)
@@ -117,5 +168,16 @@ public sealed class ApiClient
         }
 
         throw new InvalidOperationException($"Request failed: {(int)response.StatusCode} {message}");
+    }
+
+    private static string BuildExportUri(string baseUri, string range, int? year)
+    {
+        var uri = $"{baseUri}?range={Uri.EscapeDataString(range)}";
+        if (year.HasValue)
+        {
+            uri += $"&year={year.Value}";
+        }
+
+        return uri;
     }
 }

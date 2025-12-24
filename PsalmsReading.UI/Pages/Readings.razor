@@ -1,4 +1,7 @@
 ﻿@page "/readings"
+@using System.Text
+@using System.Text.Json
+@using PsalmsReading.UI.Json
 @inject ApiClient ApiClient
 
 <PageTitle>Readings</PageTitle>
@@ -9,6 +12,15 @@
         <p class="text-muted mb-0">View Sunday readings by month and week.</p>
     </div>
     <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-primary" @onclick="OpenExportModal" disabled="@_isSaving">
+            Export
+        </button>
+        <button class="btn btn-outline-primary" @onclick="OpenImportModal" disabled="@_isSaving">
+            Import
+        </button>
+        <button class="btn btn-outline-danger" @onclick="ToggleBulkDeleteMode" disabled="@_isSaving">
+            @(_isBulkDeleteMode ? "Exit delete mode" : "Bulk delete")
+        </button>
         <button class="btn btn-outline-secondary" @onclick="() => ChangeYear(-1)" disabled="@_isLoading">
             Prev
         </button>
@@ -31,6 +43,19 @@
 @if (_saveError is not null)
 {
     <div class="alert alert-danger">@_saveError</div>
+}
+
+@if (_isBulkDeleteMode)
+{
+    <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2">
+        <span>Bulk delete mode: @GetBulkSelectedCount() dates selected.</span>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="ClearBulkSelection" disabled="@(!_bulkSelectedDates.Any() || _isSaving)">
+            Clear selection
+        </button>
+        <button class="btn btn-sm btn-danger" @onclick="OpenBulkDeleteModal" disabled="@(!_bulkSelectedDates.Any() || _isSaving)">
+            Delete selected
+        </button>
+    </div>
 }
 
 <div class="card shadow-sm">
@@ -67,7 +92,17 @@
                         {
                             IReadOnlyList<DateOnly?> slots = GetSundaySlots(_year, month);
                             <tr>
-                                <th scope="row">@GetMonthName(month)</th>
+                                <th scope="row">
+                                    <div class="d-flex align-items-center justify-content-between gap-2">
+                                        <span>@GetMonthName(month)</span>
+                                        @if (_isBulkDeleteMode)
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => ToggleMonthSelection(_year, month)" type="button">
+                                                @(IsMonthFullySelected(_year, month) ? "Clear" : "Select")
+                                            </button>
+                                        }
+                                    </div>
+                                </th>
                                 @for (int index = 0; index < 5; index++)
                                 {
                                     DateOnly? slotDate = slots[index];
@@ -81,43 +116,62 @@
                                         bool isFuturePlan = reading is not null && reading.DateRead > DateOnly.FromDateTime(DateTime.Today);
                                         string? type = reading is null ? null : GetPsalmType(reading.PsalmId);
                                         <td>
-                                            <div class="d-flex flex-column gap-1 @GetCellClass(type)" @attributes="GetTooltipAttributes(type)">
-                                                @if (reading is not null)
-                                                {
-                                                    <div class="fw-semibold">Salmo @reading.PsalmId - @GetPsalmTitle(reading.PsalmId)</div>
-                                                    <div class="text-muted">Día @slotDate.Value.Day</div>
-                                                    @if (isFuturePlan)
+                                            @if (_isBulkDeleteMode)
+                                            {
+                                                bool isSelected = IsBulkSelected(slotDate.Value);
+                                                <div class="d-flex flex-column gap-1 @GetBulkCellClass(slotDate.Value)" role="button" @onclick="() => ToggleBulkSelection(slotDate.Value)">
+                                                    <div class="fw-semibold">Día @slotDate.Value.Day</div>
+                                                    @if (reading is not null)
                                                     {
-                                                        <div class="text-muted">Planificado</div>
-                                                        @if (!string.IsNullOrWhiteSpace(reading.RuleApplied))
-                                                        {
-                                                            <div class="text-muted">@reading.RuleApplied</div>
-                                                        }
-                                                    }
-                                                    <a class="link-primary" href="@GetBibleLink(reading.PsalmId)" target="_blank" rel="noopener noreferrer">
-                                                        Leer en Bible.com
-                                                    </a>
-                                                    @if (!isFuturePlan)
-                                                    {
-                                                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => StartEdit(reading)">
-                                                            Editar
-                                                        </button>
+                                                        <div>Salmo @reading.PsalmId - @GetPsalmTitle(reading.PsalmId)</div>
                                                     }
                                                     else
                                                     {
-                                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenCreate(slotDate.Value, reading.PsalmId)">
-                                                            Registrar
+                                                        <div class="text-muted">Sin lectura</div>
+                                                    }
+                                                    <div class="text-muted">@(isSelected ? "Seleccionado" : "Seleccionar")</div>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="d-flex flex-column gap-1 @GetCellClass(type)" @attributes="GetTooltipAttributes(type)">
+                                                    @if (reading is not null)
+                                                    {
+                                                        <div class="fw-semibold">Salmo @reading.PsalmId - @GetPsalmTitle(reading.PsalmId)</div>
+                                                        <div class="text-muted">Día @slotDate.Value.Day</div>
+                                                        @if (isFuturePlan)
+                                                        {
+                                                            <div class="text-muted">Planificado</div>
+                                                            @if (!string.IsNullOrWhiteSpace(reading.RuleApplied))
+                                                            {
+                                                                <div class="text-muted">@reading.RuleApplied</div>
+                                                            }
+                                                        }
+                                                        <a class="link-primary" href="@GetBibleLink(reading.PsalmId)" target="_blank" rel="noopener noreferrer">
+                                                            Leer en Bible.com
+                                                        </a>
+                                                        @if (!isFuturePlan)
+                                                        {
+                                                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => StartEdit(reading)">
+                                                                Editar
+                                                            </button>
+                                                        }
+                                                        else
+                                                        {
+                                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenCreate(slotDate.Value, reading.PsalmId)">
+                                                                Registrar
+                                                            </button>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="text-muted">Día @slotDate.Value.Day</div>
+                                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenCreate(slotDate.Value)">
+                                                            Agregar
                                                         </button>
                                                     }
-                                                }
-                                                else
-                                                {
-                                                    <div class="text-muted">Día @slotDate.Value.Day</div>
-                                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenCreate(slotDate.Value)">
-                                                        Agregar
-                                                    </button>
-                                                }
-                                            </div>
+                                                </div>
+                                            }
                                         </td>
                                     }
                                 }
@@ -177,6 +231,151 @@
     <div class="modal-backdrop fade show"></div>
 }
 
+@if (_showExportModal)
+{
+    <div class="modal fade show" style="display:block;" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Export readings</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseExportModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Export Sunday readings for the selected year or all readings (including future dates).</p>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-6">
+                            <label class="form-label">Scope</label>
+                            <select class="form-select" @bind="_exportScope">
+                                <option value="year">Year (@_year)</option>
+                                <option value="all">All</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Format</label>
+                            <select class="form-select" @bind="_exportFormat">
+                                <option value="ics">ICS (calendar)</option>
+                                <option value="json">JSON</option>
+                            </select>
+                        </div>
+                    </div>
+                    @if (_exportError is not null)
+                    {
+                        <div class="alert alert-danger mt-3">@_exportError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseExportModal" disabled="@_isExporting">Cancel</button>
+                    <button class="btn btn-primary" @onclick="ExportReadings" disabled="@_isExporting">
+                        @(_isExporting ? "Exporting..." : "Export")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@if (_showImportModal)
+{
+    <div class="modal fade show" style="display:block;" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Import readings (JSON)</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseImportModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Select a JSON export to analyze conflicts before importing.</p>
+                    <InputFile OnChange="OnImportFileSelected" accept=".json,application/json" />
+                    @if (!string.IsNullOrWhiteSpace(_importFileName))
+                    {
+                        <div class="text-muted mt-2">Selected: @_importFileName</div>
+                    }
+                    @if (_importError is not null)
+                    {
+                        <div class="alert alert-danger mt-3">@_importError</div>
+                    }
+                    @if (_importPreview is not null)
+                    {
+                        <div class="mt-3">
+                            <div class="fw-semibold">Records found: @_importPreview.TotalRecords</div>
+                            @if (_importPreview.ConflictCount == 0)
+                            {
+                                <div class="text-success">No conflicts detected.</div>
+                                <button class="btn btn-primary mt-2" @onclick="@(() => ImportReadings("ignore"))" disabled="@_isImporting">
+                                    @(_isImporting ? "Importing..." : "Import")
+                                </button>
+                            }
+                            else
+                            {
+                                string conflictLabel = _importPreview.ConflictCount == 1
+                                    ? "Conflict found on 1 date."
+                                    : $"Conflicts found on {_importPreview.ConflictCount} dates (more than one date).";
+                                <div class="alert alert-warning mt-2">@conflictLabel</div>
+                                <div class="text-muted">
+                                    Conflicting dates: @string.Join(", ", _importPreview.ConflictDates.Select(d => d.ToString("yyyy-MM-dd")))
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 mt-2">
+                                    <button class="btn btn-danger" @onclick="@(() => ImportReadings("replace"))" disabled="@_isImporting">
+                                        Replace dates
+                                    </button>
+                                    <button class="btn btn-outline-primary" @onclick="@(() => ImportReadings("ignore"))" disabled="@_isImporting">
+                                        Ignore dates
+                                    </button>
+                                    <button class="btn btn-outline-secondary" @onclick="CancelImport" disabled="@_isImporting">
+                                        Cancel
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    @if (_importResultMessage is not null)
+                    {
+                        <div class="alert alert-success mt-3">@_importResultMessage</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseImportModal" disabled="@_isImporting">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@if (_showBulkDeleteModal)
+{
+    <div class="modal fade show" style="display:block;" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm bulk delete</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseBulkDeleteModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        This action is permanent and will delete readings for the selected dates.
+                    </div>
+                    <p class="mb-2">Dates selected: @GetBulkSelectedCount()</p>
+                    <label class="form-label">Type <strong>I am sure</strong> to confirm</label>
+                    <input class="form-control" @bind="_bulkDeleteConfirmation" />
+                    @if (_bulkDeleteError is not null)
+                    {
+                        <div class="alert alert-danger mt-3">@_bulkDeleteError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseBulkDeleteModal" disabled="@_isSaving">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ConfirmBulkDelete" disabled="@(!CanConfirmBulkDelete() || _isSaving)">
+                        @(_isSaving ? "Deleting..." : "Delete")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
 @code {
     private List<PsalmDto> _psalms = [];
     private List<ReadingRecordDto> _readings = [];
@@ -186,6 +385,24 @@
     private string? _loadError;
     private string? _saveError;
     private string? _saveMessage;
+    private bool _isBulkDeleteMode;
+    private HashSet<DateOnly> _bulkSelectedDates = [];
+    private bool _showBulkDeleteModal;
+    private string _bulkDeleteConfirmation = string.Empty;
+    private string? _bulkDeleteError;
+    private bool _showExportModal;
+    private bool _showImportModal;
+    private bool _isExporting;
+    private string _exportScope = "year";
+    private string _exportFormat = "ics";
+    private string? _exportError;
+    private bool _isImporting;
+    private string? _importJsonText;
+    private string? _importFileName;
+    private ReadingImportPreviewDto? _importPreview;
+    private string? _importError;
+    private string? _importResultMessage;
+    private static readonly JsonSerializerOptions ImportJsonOptions = CreateImportJsonOptions();
     private int _year = DateTime.Today.Year;
     private int _selectedPsalmId;
     private DateOnly _dateRead = DateOnly.FromDateTime(DateTime.Today);
@@ -232,6 +449,185 @@
         {
             _isLoading = false;
         }
+    }
+
+    private async Task ExportReadings()
+    {
+        try
+        {
+            _exportError = null;
+            _isExporting = true;
+
+            int? exportYear = _exportScope == "year" ? _year : null;
+            string exportData = _exportFormat == "json"
+                ? await ApiClient.ExportReadingsJsonAsync(_exportScope, exportYear)
+                : await ApiClient.ExportReadingsIcsAsync(_exportScope, exportYear);
+
+            string contentType = _exportFormat == "json" ? "application/json" : "text/calendar";
+            string fileSuffix = _exportFormat == "json" ? "json" : "ics";
+            string scopeLabel = _exportScope == "year" ? _year.ToString() : "all";
+            string fileName = $"psalm-readings-{scopeLabel}.{fileSuffix}";
+            await JsRuntime.InvokeVoidAsync("psalmsReading.downloadFile", fileName, exportData, contentType);
+            await JsRuntime.InvokeVoidAsync("psalmsReading.showToast", "Export completed.", "success");
+            CloseExportModal();
+        }
+        catch (Exception ex)
+        {
+            _exportError = ex.Message;
+            await JsRuntime.InvokeVoidAsync("psalmsReading.showToast", $"Export failed: {ex.Message}", "danger");
+        }
+        finally
+        {
+            _isExporting = false;
+        }
+    }
+
+    private async Task OnImportFileSelected(InputFileChangeEventArgs args)
+    {
+        _importError = null;
+        _importResultMessage = null;
+        _importPreview = null;
+        _importJsonText = null;
+        _importFileName = null;
+
+        try
+        {
+            _isImporting = true;
+            IBrowserFile file = args.File;
+            _importFileName = file.Name;
+
+            await using Stream stream = file.OpenReadStream(5 * 1024 * 1024);
+            using var reader = new StreamReader(stream, Encoding.UTF8, true);
+            string json = await reader.ReadToEndAsync();
+            if (!TryValidateImportJson(json, out string? validationError))
+            {
+                _importError = validationError ?? "Invalid JSON import file.";
+                return;
+            }
+
+            _importJsonText = json;
+            _importPreview = await ApiClient.PreviewReadingsImportAsync(json);
+        }
+        catch (Exception ex)
+        {
+            _importError = ex.Message;
+        }
+        finally
+        {
+            _isImporting = false;
+        }
+    }
+
+    private async Task ImportReadings(string mode)
+    {
+        if (string.IsNullOrWhiteSpace(_importJsonText))
+        {
+            _importError = "Select a JSON file before importing.";
+            return;
+        }
+
+        try
+        {
+            _importError = null;
+            _importResultMessage = null;
+            _isImporting = true;
+
+            ReadingImportResultDto result = await ApiClient.ImportReadingsAsync(_importJsonText, mode);
+            _importResultMessage = $"Imported {result.ImportedCount} records. Skipped {result.SkippedCount}.";
+            await LoadReadings();
+        }
+        catch (Exception ex)
+        {
+            _importError = ex.Message;
+        }
+        finally
+        {
+            _isImporting = false;
+        }
+    }
+
+    private void CancelImport()
+    {
+        _importJsonText = null;
+        _importFileName = null;
+        _importPreview = null;
+        _importError = null;
+    }
+
+    private void OpenExportModal()
+    {
+        _exportError = null;
+        _showExportModal = true;
+    }
+
+    private void CloseExportModal()
+    {
+        _showExportModal = false;
+    }
+
+    private void OpenImportModal()
+    {
+        _showImportModal = true;
+    }
+
+    private void CloseImportModal()
+    {
+        _showImportModal = false;
+    }
+
+    private static bool TryValidateImportJson(string json, out string? error)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            error = "Import file is empty.";
+            return false;
+        }
+
+        try
+        {
+            ReadingExportDto? data = JsonSerializer.Deserialize<ReadingExportDto>(json, ImportJsonOptions);
+            if (data is null)
+            {
+                error = "Unable to read import data.";
+                return false;
+            }
+
+            if (data.SchemaVersion != 1)
+            {
+                error = $"Unsupported schema version: {data.SchemaVersion}.";
+                return false;
+            }
+
+            foreach (ReadingExportRecordDto record in data.Records)
+            {
+                if (record.PsalmId <= 0)
+                {
+                    error = "PsalmId must be greater than 0.";
+                    return false;
+                }
+
+                if (record.DateRead == default)
+                {
+                    error = "DateRead is required.";
+                    return false;
+                }
+            }
+
+            error = null;
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    private static JsonSerializerOptions CreateImportJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new DateOnlyJsonConverter());
+        return options;
     }
 
     private async Task SaveReading()
@@ -338,6 +734,111 @@
         catch (Exception ex)
         {
             _saveError = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void ToggleBulkDeleteMode()
+    {
+        _isBulkDeleteMode = !_isBulkDeleteMode;
+    }
+
+    private void ToggleBulkSelection(DateOnly date)
+    {
+        if (_bulkSelectedDates.Contains(date))
+        {
+            _bulkSelectedDates.Remove(date);
+        }
+        else
+        {
+            _bulkSelectedDates.Add(date);
+        }
+    }
+
+    private void ToggleMonthSelection(int year, int month)
+    {
+        IReadOnlyList<DateOnly?> slots = GetSundaySlots(year, month);
+        List<DateOnly> dates = slots.Where(d => d.HasValue).Select(d => d.GetValueOrDefault()).ToList();
+        bool allSelected = dates.All(_bulkSelectedDates.Contains);
+
+        foreach (DateOnly date in dates)
+        {
+            if (allSelected)
+            {
+                _bulkSelectedDates.Remove(date);
+            }
+            else
+            {
+                _bulkSelectedDates.Add(date);
+            }
+        }
+    }
+
+    private bool IsMonthFullySelected(int year, int month)
+    {
+        IReadOnlyList<DateOnly?> slots = GetSundaySlots(year, month);
+        List<DateOnly> dates = slots.Where(d => d.HasValue).Select(d => d.GetValueOrDefault()).ToList();
+        return dates.Count > 0 && dates.All(_bulkSelectedDates.Contains);
+    }
+
+    private bool IsBulkSelected(DateOnly date) => _bulkSelectedDates.Contains(date);
+
+    private string GetBulkCellClass(DateOnly date)
+    {
+        return _bulkSelectedDates.Contains(date)
+            ? "border border-2 border-danger bg-danger-subtle p-2 rounded"
+            : "border border-2 border-secondary-subtle p-2 rounded";
+    }
+
+    private int GetBulkSelectedCount() => _bulkSelectedDates.Count;
+
+    private void ClearBulkSelection()
+    {
+        _bulkSelectedDates.Clear();
+    }
+
+    private void OpenBulkDeleteModal()
+    {
+        _bulkDeleteError = null;
+        _bulkDeleteConfirmation = string.Empty;
+        _showBulkDeleteModal = true;
+    }
+
+    private void CloseBulkDeleteModal()
+    {
+        _showBulkDeleteModal = false;
+        _bulkDeleteConfirmation = string.Empty;
+        _bulkDeleteError = null;
+    }
+
+    private bool CanConfirmBulkDelete() =>
+        _bulkDeleteConfirmation == "I am sure" && _bulkSelectedDates.Count > 0;
+
+    private async Task ConfirmBulkDelete()
+    {
+        if (!CanConfirmBulkDelete())
+        {
+            return;
+        }
+
+        try
+        {
+            _bulkDeleteError = null;
+            _isSaving = true;
+            List<DateOnly> dates = _bulkSelectedDates.ToList();
+            int deletedCount = await ApiClient.BulkDeleteReadingsAsync(dates);
+            _saveMessage = $"Deleted {deletedCount} readings.";
+            _saveError = null;
+            _bulkSelectedDates.Clear();
+            await LoadReadings();
+            CloseBulkDeleteModal();
+        }
+        catch (Exception ex)
+        {
+            _bulkDeleteError = ex.Message;
         }
         finally
         {
