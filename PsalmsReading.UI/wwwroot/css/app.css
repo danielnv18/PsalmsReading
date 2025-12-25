@@ -2,6 +2,19 @@ html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
+:root {
+    --psalms-ink: oklch(0.22 0.02 260);
+    --psalms-ink-strong: oklch(0.18 0.02 260);
+    --psalms-neutral-200: oklch(0.94 0.01 260);
+    --psalms-neutral-300: oklch(0.88 0.01 260);
+    --psalms-neutral-400: oklch(0.8 0.02 260);
+    --psalms-accent: oklch(0.62 0.16 250);
+    --psalms-accent-soft: oklch(0.93 0.04 250);
+    --psalms-success: oklch(0.64 0.17 145);
+    --psalms-danger: oklch(0.6 0.2 25);
+    --psalms-warning: oklch(0.75 0.14 85);
+}
+
 h1:focus {
     outline: none;
 }
@@ -112,96 +125,4 @@ code {
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
-}
-
-.type-badge {
-    display: inline-block;
-    padding: 0.15rem 0.5rem;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #fff;
-    letter-spacing: 0.01em;
-    background-color: var(--type-color, #495057);
-}
-
-.type-lamento {
-    --type-color: #0b7285;
-    --type-bg: #ccf5ff;
-}
-
-.type-alabanza {
-    --type-color: #e03131;
-    --type-bg: #ffe3e3;
-}
-
-.type-himno {
-    --type-color: #f08c00;
-    --type-bg: #ffe8cc;
-}
-
-.type-realeza {
-    --type-color: #e67700;
-    --type-bg: #ffe8cc;
-}
-
-.type-sabiduria {
-    --type-color: #f2b705;
-    --type-bg: #fff9db;
-}
-
-.type-agradecimiento {
-    --type-color: #2f9e44;
-    --type-bg: #d3f9d8;
-}
-
-.type-confianza {
-    --type-color: #4dabf7;
-    --type-bg: #e7f5ff;
-}
-
-.type-unknown {
-    --type-color: #495057;
-    --type-bg: #f1f3f5;
-}
-
-.type-himno.type-badge {
-    color: #1f1f1f;
-}
-
-.type-cell {
-    background-color: var(--type-bg, transparent);
-    color: #111;
-    border-radius: 0.5rem;
-    padding: 0.5rem;
-    height: 100%;
-    width: 100%;
-}
-
-.type-cell .text-muted {
-    color: #111 !important;
-}
-
-.stats-progress {
-    height: 0.5rem;
-}
-
-.stats-bar {
-    height: 0.5rem;
-    background-color: #e9ecef;
-    border-radius: 999px;
-    overflow: hidden;
-}
-
-.stats-bar-fill {
-    height: 100%;
-    border-radius: 999px;
-}
-
-.stats-bar-fill--actual {
-    background-color: #0d6efd;
-}
-
-.stats-bar-fill--planned {
-    background-color: #198754;
 }

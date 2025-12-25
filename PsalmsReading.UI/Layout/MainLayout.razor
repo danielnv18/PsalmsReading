@@ -7,3 +7,94 @@
         </article>
     </main>
 </div>
+<style>
+    .type-badge {
+        display: inline-block;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--type-ink, #fff);
+        letter-spacing: 0.01em;
+        background-color: var(--type-color, var(--psalms-neutral-400));
+    }
+
+    .type-lamento {
+        --type-color: oklch(0.55 0.12 210);
+        --type-bg: oklch(0.93 0.03 210);
+    }
+
+    .type-alabanza {
+        --type-color: oklch(0.6 0.2 25);
+        --type-bg: oklch(0.93 0.05 25);
+    }
+
+    .type-himno {
+        --type-color: oklch(0.75 0.14 85);
+        --type-bg: oklch(0.95 0.05 85);
+        --type-ink: var(--psalms-ink-strong);
+    }
+
+    .type-realeza {
+        --type-color: oklch(0.65 0.16 60);
+        --type-bg: oklch(0.94 0.05 60);
+    }
+
+    .type-sabiduria {
+        --type-color: oklch(0.78 0.13 95);
+        --type-bg: oklch(0.96 0.04 95);
+        --type-ink: var(--psalms-ink-strong);
+    }
+
+    .type-agradecimiento {
+        --type-color: oklch(0.62 0.17 145);
+        --type-bg: oklch(0.93 0.05 145);
+    }
+
+    .type-confianza {
+        --type-color: oklch(0.65 0.14 250);
+        --type-bg: oklch(0.94 0.04 250);
+    }
+
+    .type-unknown {
+        --type-color: var(--psalms-neutral-400);
+        --type-bg: var(--psalms-neutral-200);
+    }
+
+    .type-cell {
+        background-color: var(--type-bg, transparent);
+        color: var(--psalms-ink-strong);
+        border-radius: 0.5rem;
+        padding: 0.5rem;
+        height: 100%;
+        width: 100%;
+    }
+
+    .type-cell .text-muted {
+        color: var(--psalms-ink-strong) !important;
+    }
+
+    .stats-progress {
+        height: 0.5rem;
+    }
+
+    .stats-bar {
+        height: 0.5rem;
+        background-color: var(--psalms-neutral-300);
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .stats-bar-fill {
+        height: 100%;
+        border-radius: 999px;
+    }
+
+    .stats-bar-fill--actual {
+        background-color: var(--psalms-accent);
+    }
+
+    .stats-bar-fill--planned {
+        background-color: var(--psalms-success);
+    }
+</style>

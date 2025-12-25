@@ -1,6 +1,8 @@
 ﻿@page "/readings"
+@using System.IO
 @using System.Text
 @using System.Text.Json
+@using Microsoft.AspNetCore.Components.Forms
 @using PsalmsReading.UI.Json
 @inject ApiClient ApiClient
 
@@ -281,15 +283,26 @@
         <div class="modal-dialog modal-dialog-centered" role="document">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Import readings (JSON)</h5>
+                    <h5 class="modal-title">Import readings (JSON or ICS)</h5>
                     <button type="button" class="btn-close" aria-label="Close" @onclick="CloseImportModal"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted">Select a JSON export to analyze conflicts before importing.</p>
-                    <InputFile OnChange="OnImportFileSelected" accept=".json,application/json" />
+                    <p class="text-muted">Select a JSON or ICS export to analyze conflicts before importing.</p>
+                    <div class="dropzone @(_isImportDragActive ? "is-active" : string.Empty)"
+                         @ondragover="OnImportDragOver"
+                         @ondragleave="OnImportDragLeave"
+                         @ondrop="OnImportDrop"
+                         @ondragover:preventDefault="true"
+                         @ondrop:preventDefault="true">
+                        <div class="dropzone-content">
+                            <div class="fw-semibold">Drop JSON or ICS here</div>
+                            <div class="text-muted">or click to browse</div>
+                        </div>
+                        <InputFile OnChange="OnImportFileSelected" accept=".json,.ics,application/json,text/calendar" class="dropzone-input" />
+                    </div>
                     @if (!string.IsNullOrWhiteSpace(_importFileName))
                     {
-                        <div class="text-muted mt-2">Selected: @_importFileName</div>
+                        <div class="text-muted mt-2">Selected: @_importFileName (@_importFileType?.ToUpperInvariant())</div>
                     }
                     @if (_importError is not null)
                     {
@@ -397,11 +410,13 @@
     private string _exportFormat = "ics";
     private string? _exportError;
     private bool _isImporting;
-    private string? _importJsonText;
+    private string? _importFileContent;
     private string? _importFileName;
+    private string? _importFileType;
     private ReadingImportPreviewDto? _importPreview;
     private string? _importError;
     private string? _importResultMessage;
+    private bool _isImportDragActive;
     private static readonly JsonSerializerOptions ImportJsonOptions = CreateImportJsonOptions();
     private int _year = DateTime.Today.Year;
     private int _selectedPsalmId;
@@ -487,26 +502,50 @@
         _importError = null;
         _importResultMessage = null;
         _importPreview = null;
-        _importJsonText = null;
+        _importFileContent = null;
         _importFileName = null;
+        _importFileType = null;
 
         try
         {
             _isImporting = true;
             IBrowserFile file = args.File;
             _importFileName = file.Name;
+            string extension = Path.GetExtension(file.Name).ToLowerInvariant();
 
-            await using Stream stream = file.OpenReadStream(5 * 1024 * 1024);
-            using var reader = new StreamReader(stream, Encoding.UTF8, true);
-            string json = await reader.ReadToEndAsync();
-            if (!TryValidateImportJson(json, out string? validationError))
+            if (extension != ".json" && extension != ".ics")
             {
-                _importError = validationError ?? "Invalid JSON import file.";
+                _importError = "Only JSON or ICS files are supported.";
                 return;
             }
 
-            _importJsonText = json;
-            _importPreview = await ApiClient.PreviewReadingsImportAsync(json);
+            _importFileType = extension == ".ics" ? "ics" : "json";
+
+            await using Stream stream = file.OpenReadStream(5 * 1024 * 1024);
+            using var reader = new StreamReader(stream, Encoding.UTF8, true);
+            string content = await reader.ReadToEndAsync();
+            if (extension == ".json")
+            {
+                if (!TryValidateImportJson(content, out string? validationError))
+                {
+                    _importError = validationError ?? "Invalid JSON import file.";
+                    return;
+                }
+
+                _importFileContent = content;
+                _importPreview = await ApiClient.PreviewReadingsImportAsync(content);
+            }
+            else
+            {
+                if (!TryValidateImportIcs(content, out string? validationError))
+                {
+                    _importError = validationError ?? "Invalid ICS import file.";
+                    return;
+                }
+
+                _importFileContent = content;
+                _importPreview = await ApiClient.PreviewReadingsIcsImportAsync(content);
+            }
         }
         catch (Exception ex)
         {
@@ -515,14 +554,30 @@
         finally
         {
             _isImporting = false;
+            _isImportDragActive = false;
         }
+    }
+
+    private void OnImportDragOver()
+    {
+        _isImportDragActive = true;
+    }
+
+    private void OnImportDragLeave()
+    {
+        _isImportDragActive = false;
+    }
+
+    private void OnImportDrop()
+    {
+        _isImportDragActive = false;
     }
 
     private async Task ImportReadings(string mode)
     {
-        if (string.IsNullOrWhiteSpace(_importJsonText))
+        if (string.IsNullOrWhiteSpace(_importFileContent))
         {
-            _importError = "Select a JSON file before importing.";
+            _importError = "Select a JSON or ICS file before importing.";
             return;
         }
 
@@ -532,8 +587,17 @@
             _importResultMessage = null;
             _isImporting = true;
 
-            ReadingImportResultDto result = await ApiClient.ImportReadingsAsync(_importJsonText, mode);
-            _importResultMessage = $"Imported {result.ImportedCount} records. Skipped {result.SkippedCount}.";
+            if (string.Equals(_importFileType, "ics", StringComparison.OrdinalIgnoreCase))
+            {
+                ReadingImportResultDto result = await ApiClient.ImportReadingsIcsAsync(_importFileContent, mode);
+                _importResultMessage = $"Imported {result.ImportedCount} records. Skipped {result.SkippedCount}.";
+            }
+            else
+            {
+                ReadingImportResultDto result = await ApiClient.ImportReadingsAsync(_importFileContent, mode);
+                _importResultMessage = $"Imported {result.ImportedCount} records. Skipped {result.SkippedCount}.";
+            }
+
             await LoadReadings();
         }
         catch (Exception ex)
@@ -548,8 +612,9 @@
 
     private void CancelImport()
     {
-        _importJsonText = null;
+        _importFileContent = null;
         _importFileName = null;
+        _importFileType = null;
         _importPreview = null;
         _importError = null;
     }
@@ -621,6 +686,30 @@
             error = ex.Message;
             return false;
         }
+    }
+
+    private static bool TryValidateImportIcs(string ics, out string? error)
+    {
+        if (string.IsNullOrWhiteSpace(ics))
+        {
+            error = "Import file is empty.";
+            return false;
+        }
+
+        if (!ics.Contains("BEGIN:VEVENT", StringComparison.OrdinalIgnoreCase))
+        {
+            error = "ICS file has no events.";
+            return false;
+        }
+
+        if (!ics.Contains("DTSTART", StringComparison.OrdinalIgnoreCase))
+        {
+            error = "ICS file is missing DTSTART.";
+            return false;
+        }
+
+        error = null;
+        return true;
     }
 
     private static JsonSerializerOptions CreateImportJsonOptions()

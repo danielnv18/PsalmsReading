@@ -34,6 +34,7 @@ builder.Services.AddScoped<IReadingScheduler, ReadingScheduler>();
 builder.Services.AddScoped<ICalendarExporter, CalendarExporter>();
 builder.Services.AddScoped<IReadingExportService, ReadingExportService>();
 builder.Services.AddScoped<IReadingImportService, ReadingImportService>();
+builder.Services.AddScoped<IReadingCalendarImportService, ReadingCalendarImportService>();
 
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
@@ -264,6 +265,27 @@ api.MapPost("/readings/import/preview", async (
     }
 });
 
+api.MapPost("/readings/import/ics/preview", async (
+    HttpRequest request,
+    IReadingCalendarImportService calendarImportService,
+    IReadingImportService importService,
+    CancellationToken cancellationToken) =>
+{
+    using StreamReader reader = new(request.Body);
+    string icsContent = await reader.ReadToEndAsync(cancellationToken);
+
+    try
+    {
+        ReadingExportDto importData = await calendarImportService.ParseAsync(icsContent, cancellationToken);
+        ReadingImportPreviewDto preview = await importService.PreviewAsync(importData, cancellationToken);
+        return Results.Ok(preview);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+});
+
 api.MapPost("/readings/import", async (
     string? mode,
     ReadingExportDto importData,
@@ -277,6 +299,33 @@ api.MapPost("/readings/import", async (
 
     try
     {
+        ReadingImportResultDto result = await importService.ImportAsync(importData, importMode, cancellationToken);
+        return Results.Ok(result);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+});
+
+api.MapPost("/readings/import/ics", async (
+    string? mode,
+    HttpRequest request,
+    IReadingCalendarImportService calendarImportService,
+    IReadingImportService importService,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryParseReadingImportMode(mode, out ReadingImportMode importMode))
+    {
+        return Results.BadRequest("Mode must be replace or ignore.");
+    }
+
+    using StreamReader reader = new(request.Body);
+    string icsContent = await reader.ReadToEndAsync(cancellationToken);
+
+    try
+    {
+        ReadingExportDto importData = await calendarImportService.ParseAsync(icsContent, cancellationToken);
         ReadingImportResultDto result = await importService.ImportAsync(importData, importMode, cancellationToken);
         return Results.Ok(result);
     }

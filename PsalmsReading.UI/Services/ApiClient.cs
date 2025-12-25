@@ -101,6 +101,16 @@ public sealed class ApiClient
         return result ?? new ReadingImportPreviewDto(0, 0, []);
     }
 
+    public async Task<ReadingImportPreviewDto> PreviewReadingsIcsImportAsync(string ics, CancellationToken cancellationToken = default)
+    {
+        using StringContent content = new(ics, Encoding.UTF8, "text/calendar");
+        HttpResponseMessage response = await _httpClient.PostAsync("readings/import/ics/preview", content, cancellationToken);
+        await EnsureSuccess(response);
+
+        ReadingImportPreviewDto? result = await response.Content.ReadFromJsonAsync<ReadingImportPreviewDto>(_jsonOptions, cancellationToken);
+        return result ?? new ReadingImportPreviewDto(0, 0, []);
+    }
+
     public async Task<ReadingImportResultDto> ImportReadingsAsync(
         string json,
         string mode,
@@ -108,6 +118,20 @@ public sealed class ApiClient
     {
         using var content = new StringContent(json, Encoding.UTF8, "application/json");
         var uri = $"readings/import?mode={Uri.EscapeDataString(mode)}";
+        HttpResponseMessage response = await _httpClient.PostAsync(uri, content, cancellationToken);
+        await EnsureSuccess(response);
+
+        ReadingImportResultDto? result = await response.Content.ReadFromJsonAsync<ReadingImportResultDto>(_jsonOptions, cancellationToken);
+        return result ?? new ReadingImportResultDto(0, 0, 0);
+    }
+
+    public async Task<ReadingImportResultDto> ImportReadingsIcsAsync(
+        string ics,
+        string mode,
+        CancellationToken cancellationToken = default)
+    {
+        using StringContent content = new(ics, Encoding.UTF8, "text/calendar");
+        string uri = $"readings/import/ics?mode={Uri.EscapeDataString(mode)}";
         HttpResponseMessage response = await _httpClient.PostAsync(uri, content, cancellationToken);
         await EnsureSuccess(response);
 
